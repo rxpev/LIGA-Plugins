@@ -1,0 +1,11 @@
+{
+  "amxxpawn.compiler.executablePath": "${workspaceRoot}/generated/cstrike/addons/amxmodx/scripting/amxxpc.exe",
+  "amxxpawn.compiler.includePaths": [
+    "${workspaceRoot}/generated/cstrike/addons/amxmodx/scripting/include"
+  ],
+  "amxxpawn.compiler.outputType": "path",
+  "amxxpawn.compiler.outputPath": "${workspaceRoot}/config/cstrike/addons/amxmodx/plugins",
+  "editor.quickSuggestions": {
+    "strings": "on"
+  }
+}
