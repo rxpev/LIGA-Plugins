@@ -144,7 +144,7 @@ async function handlerAMXX() {
  */
 async function handlerSourceMod() {
   const files = [] as Array<string>;
-  const games = ["csgo", "cssource"];
+  const games = ["csgo"];
 
   console.log(">> Downloading SourceMod...");
   files.push(await download(Endpoint.SOURCEMOD, DOWNLOAD_DIR));
