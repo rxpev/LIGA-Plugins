@@ -42,185 +42,225 @@ End
 // The name of the template defines a type that is used by individual bot profiles
 //
 
+// personality templates
+// stats added as a separate template since it would get overwritten by difficulty template
+//
+
+Template ASniperPersonality
+	Teamwork = 75
+	Aggression = 75
+End
+
+Template PSniperPersonality
+	Teamwork = 95
+	Aggression = 40
+End
+
+Template SniperPersonality
+	Teamwork = 85
+	Aggression = 60
+End
+
+Template RiflePersonality
+	Teamwork = 85
+	Aggression = 70
+End
+
+Template ARiflePersonality
+	Teamwork = 95
+	Aggression = 85
+End
+
+Template PRiflePersonality
+	Teamwork = 85
+	Aggression = 40
+End
+
+Template EntryPersonality
+	Teamwork = 100
+	Aggression = 95
+End
+
+Template LurkPersonality
+	Teamwork = 25
+	Aggression = 35
+End
+
+Template ALurkPersonality
+	Teamwork = 25
+	Aggression = 50
+End
+
+Template PLurkPersonality
+	Teamwork = 25
+	Aggression = 20
+End
+
 // weapon preference templates
 Template Rifle
-	WeaponPreference = m4a1
-	WeaponPreference = ak47
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
-End
-
-Template RifleT
-	WeaponPreference = ak47
-	WeaponPreference = m4a1
-	WeaponPreference = galilar
-	WeaponPreference = famas
-	WeaponPreference = mp7
-End
-
-Template Punch
-	WeaponPreference = aug
-	WeaponPreference = sg556
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
-End
-
-Template PunchT
-	WeaponPreference = aug
-	WeaponPreference = sg556
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
+    WeaponPreference = ak47
+    WeaponPreference = aug
+    WeaponPreference = m4a1_silencer
+		WeaponPreference = m4a1
+		WeaponPreference = galilar
+		WeaponPreference = famas
+		WeaponPreference = mp9
+		WeaponPreference = mac10
+		WeaponPreference = ump45
+		WeaponPreference = mp7
 End
 
 Template Sniper
-	WeaponPreference = awp
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
-End
-
-Template Power
-	WeaponPreference = m249
-	WeaponPreference = xm1014
-	WeaponPreference = nova
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
-End
-
-Template Shotgun
-	WeaponPreference = xm1014
-	WeaponPreference = nova
-	WeaponPreference = famas
-	WeaponPreference = galilar
-	WeaponPreference = mp7
-End
-
-Template Spray
-	WeaponPreference = p90
-	WeaponPreference = mp9
-	WeaponPreference = mac10
-	WeaponPreference = mp7
+		WeaponPreference = awp
+		WeaponPreference = ak47
+		WeaponPreference = aug
+		WeaponPreference = m4a1_silencer
+		WeaponPreference = m4a1
+		WeaponPreference = galilar
+		WeaponPreference = famas
+		WeaponPreference = ssg08
+		WeaponPreference = mp9
+		WeaponPreference = mac10
+		WeaponPreference = ump45
+		WeaponPreference = mp7
 End
 
 
 // skill templates
-Template Elite
+Template Star // 1.25+ 
+		Skill = 100
+		Rank = 1800
+		ReactionTime = 0.001
+		Cost = 4
+		Difficulty = EXPERT
+		VoicePitch = 85
+		AimFocusInitial = 0.001
+		AimFocusDecay = 0.001
+		AimFocusOffsetScale = 0.001
+		AimfocusInterval = 0.001
+    LookAngleMaxAccelNormal = 20000.0
+    LookAngleMaxAccelAttacking = 20000.0
+    LookAngleStiffnessAttacking = 900.0
+    LookAngleDampingAttacking = 50.0
+End
+
+Template Fragger // 1.18 - 1.24
 	Skill = 100
 	Rank = 1800
-	Aggression = 95
-	ReactionTime = 0.05
+	ReactionTime = 0.01
 	Cost = 4
 	Difficulty = EXPERT
 	VoicePitch = 85
-	AimFocusInitial = 0.5
-	AimFocusDecay = 0.1
-	AimFocusOffsetScale = 0.05
-	AimfocusInterval = 0.05
+	AimFocusInitial = 0.01
+	AimFocusDecay = 0.01
+	AimFocusOffsetScale = 0.01
+	AimfocusInterval = 0.01
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 17500.0
+  LookAngleStiffnessAttacking = 850.0
+  LookAngleDampingAttacking = 47.5
 End
 
-Template Expert
-	Skill = 90
-	Rank = 1600
-	Aggression = 80
-	ReactionTime = 0.20
+Template Solid // 1.14 - 1.17
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.06
 	Cost = 4
 	Difficulty = EXPERT
-	VoicePitch = 88
-	AimFocusInitial = 2
-	AimFocusDecay = 0.2
+	VoicePitch = 85
+	AimFocusInitial = 0.06
+	AimFocusDecay = 0.06
+	AimFocusOffsetScale = 0.06
+	AimfocusInterval = 0.06
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 16500.0
+  LookAngleStiffnessAttacking = 825.0
+  LookAngleDampingAttacking = 45.0
+End
+
+Template Medium // 1.11 - 1.13
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.1
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.1
+	AimFocusDecay = 0.1
+	AimFocusOffsetScale = 0.1
+	AimfocusInterval = 0.1
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 15500.0
+  LookAngleStiffnessAttacking = 800.0
+  LookAngleDampingAttacking = 42.5
+End
+
+Template Avg // 1.06 - 1.10
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.1
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.12
+	AimFocusDecay = 0.12
+	AimFocusOffsetScale = 0.12
+	AimfocusInterval = 0.12
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 14500.0
+  LookAngleStiffnessAttacking = 775.0
+  LookAngleDampingAttacking = 40.0
+End
+
+Template Low // 1.00 - 1.05
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.13
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.13
+	AimFocusDecay = 0.13
+	AimFocusOffsetScale = 0.13
+	AimfocusInterval = 0.13
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 13500.0
+  LookAngleStiffnessAttacking = 725.0
+  LookAngleDampingAttacking = 37.5
+End
+
+Template Bad // 0.95 - 0.99
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
-	AimfocusInterval = 0.20
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 12500.0
+  LookAngleStiffnessAttacking = 700.0
+  LookAngleDampingAttacking = 35.0
 End
 
-Template VeryHard
-	Skill = 80
-	Rank = 1400
-	Aggression = 70
-	ReactionTime = 0.30
-	Cost = 3
-	Difficulty = HARD
-	VoicePitch = 92
-	AimFocusInitial = 5
-	AimFocusDecay = 0.3
-	AimFocusOffsetScale = 0.17
-	AimfocusInterval = 0.30
-End
-
-Template Hard
-	Skill = 75
-	Rank = 1300
-	Aggression = 60
-	ReactionTime = 0.40
-	Cost = 3
-	Difficulty = HARD
-	VoicePitch = 94
-	AimFocusInitial = 10
-	AimFocusDecay = 0.4
-	AimFocusOffsetScale = 0.20
-	AimfocusInterval = 0.40
-End
-
-Template Tough
-	Skill = 60
-	Rank = 1100
-	Aggression = 45
-	ReactionTime = 0.50
-	AttackDelay = .70
-	Cost = 2
-	Difficulty = HARD
-	VoicePitch = 96
-	AimFocusInitial = 10
-	AimFocusDecay = 0.4
-	AimFocusOffsetScale = 0.25
-	AimfocusInterval = 0.50
-End
-
-Template Normal
-	Skill = 50
-	Rank = 1000
-	Aggression = 30
-	ReactionTime = 0.60
-	AttackDelay = .80
-	Cost = 2
-	Difficulty = NORMAL
-	AimFocusInitial = 12
-	AimFocusDecay = 0.5
-	AimFocusOffsetScale = 0.35
-	AimfocusInterval = 0.60
-End
-
-Template Fair
-	Skill = 25
-	Rank = 850
-	Aggression = 15
-	ReactionTime = 0.60
-	AttackDelay = .90
-	Cost = 1
-	Difficulty = NORMAL
-	VoicePitch = 105
-	AimFocusInitial = 17
-	AimFocusDecay = 0.6
-	AimFocusOffsetScale = 0.5
-	AimfocusInterval = 0.70
-End
-
-Template Easy
-	Skill = 5
-	Rank = 600
-	Aggression = 10
-	ReactionTime = 0.60
-	AttackDelay = .70
-	Cost = 1
-	Difficulty = EASY
-	VoicePitch = 110
-	AimFocusInitial = 20
-	AimFocusDecay = 0.7
-	AimFocusOffsetScale = 0.6
-	AimfocusInterval = 0.70
+Template Poor // Less than 0.94
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
+	AimFocusOffsetScale = 0.15
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 11500.0
+  LookAngleStiffnessAttacking = 675.0
+  LookAngleDampingAttacking = 32.5
 End
 
 //----------------------------------------------------------------------------
