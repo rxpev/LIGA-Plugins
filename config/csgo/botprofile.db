@@ -246,7 +246,24 @@ Template Bad // 0.95 - 0.99
   LookAngleDampingAttacking = 35.0
 End
 
-Template Poor // Less than 0.94
+Template Poor // 0.95 - 0.99
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
+	AimFocusOffsetScale = 0.15
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 12500.0
+  LookAngleStiffnessAttacking = 700.0
+  LookAngleDampingAttacking = 35.0
+End
+
+Template ReallyBad // Less than 0.94
 	Skill = 100
 	Rank = 1800
 	ReactionTime = 0.15
@@ -261,6 +278,57 @@ Template Poor // Less than 0.94
   LookAngleMaxAccelAttacking = 11500.0
   LookAngleStiffnessAttacking = 675.0
   LookAngleDampingAttacking = 32.5
+End
+
+Template Worse
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
+	AimFocusOffsetScale = 0.15
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 11500.0
+  LookAngleStiffnessAttacking = 650.0
+  LookAngleDampingAttacking = 30.0
+End
+
+Template NotGood
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
+	AimFocusOffsetScale = 0.15
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 10500.0
+  LookAngleStiffnessAttacking = 625.0
+  LookAngleDampingAttacking = 30.0
+End
+
+Template Abysmal
+	Skill = 100
+	Rank = 1800
+	ReactionTime = 0.15
+	Cost = 4
+	Difficulty = EXPERT
+	VoicePitch = 85
+	AimFocusInitial = 0.15
+	AimFocusDecay = 0.15
+	AimFocusOffsetScale = 0.15
+	AimfocusInterval = 0.15
+  LookAngleMaxAccelNormal = 20000.0
+  LookAngleMaxAccelAttacking = 9500.0
+  LookAngleStiffnessAttacking = 600.0
+  LookAngleDampingAttacking = 27.5
 End
 
 //----------------------------------------------------------------------------
