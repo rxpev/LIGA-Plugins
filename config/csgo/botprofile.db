@@ -138,10 +138,6 @@ Template Star // 1.25+
 		AimFocusDecay = 0.001
 		AimFocusOffsetScale = 0.001
 		AimfocusInterval = 0.001
-    LookAngleMaxAccelNormal = 20000.0
-    LookAngleMaxAccelAttacking = 20000.0
-    LookAngleStiffnessAttacking = 900.0
-    LookAngleDampingAttacking = 50.0
 End
 
 Template Fragger // 1.18 - 1.24
@@ -155,10 +151,6 @@ Template Fragger // 1.18 - 1.24
 	AimFocusDecay = 0.01
 	AimFocusOffsetScale = 0.01
 	AimfocusInterval = 0.01
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 17500.0
-  LookAngleStiffnessAttacking = 850.0
-  LookAngleDampingAttacking = 47.5
 End
 
 Template Solid // 1.14 - 1.17
@@ -172,10 +164,6 @@ Template Solid // 1.14 - 1.17
 	AimFocusDecay = 0.06
 	AimFocusOffsetScale = 0.06
 	AimfocusInterval = 0.06
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 16500.0
-  LookAngleStiffnessAttacking = 825.0
-  LookAngleDampingAttacking = 45.0
 End
 
 Template Medium // 1.11 - 1.13
@@ -189,10 +177,6 @@ Template Medium // 1.11 - 1.13
 	AimFocusDecay = 0.1
 	AimFocusOffsetScale = 0.1
 	AimfocusInterval = 0.1
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 15500.0
-  LookAngleStiffnessAttacking = 800.0
-  LookAngleDampingAttacking = 42.5
 End
 
 Template Avg // 1.06 - 1.10
@@ -206,10 +190,6 @@ Template Avg // 1.06 - 1.10
 	AimFocusDecay = 0.12
 	AimFocusOffsetScale = 0.12
 	AimfocusInterval = 0.12
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 14500.0
-  LookAngleStiffnessAttacking = 775.0
-  LookAngleDampingAttacking = 40.0
 End
 
 Template Low // 1.00 - 1.05
@@ -223,10 +203,6 @@ Template Low // 1.00 - 1.05
 	AimFocusDecay = 0.13
 	AimFocusOffsetScale = 0.13
 	AimfocusInterval = 0.13
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 13500.0
-  LookAngleStiffnessAttacking = 725.0
-  LookAngleDampingAttacking = 37.5
 End
 
 Template Bad // 0.95 - 0.99
@@ -240,10 +216,6 @@ Template Bad // 0.95 - 0.99
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 12500.0
-  LookAngleStiffnessAttacking = 700.0
-  LookAngleDampingAttacking = 35.0
 End
 
 Template Poor // 0.95 - 0.99
@@ -257,10 +229,6 @@ Template Poor // 0.95 - 0.99
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 12500.0
-  LookAngleStiffnessAttacking = 700.0
-  LookAngleDampingAttacking = 35.0
 End
 
 Template ReallyBad // Less than 0.94
@@ -274,10 +242,6 @@ Template ReallyBad // Less than 0.94
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 11500.0
-  LookAngleStiffnessAttacking = 675.0
-  LookAngleDampingAttacking = 32.5
 End
 
 Template Worse
@@ -291,10 +255,6 @@ Template Worse
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 11500.0
-  LookAngleStiffnessAttacking = 650.0
-  LookAngleDampingAttacking = 30.0
 End
 
 Template NotGood
@@ -308,10 +268,6 @@ Template NotGood
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 10500.0
-  LookAngleStiffnessAttacking = 625.0
-  LookAngleDampingAttacking = 30.0
 End
 
 Template Abysmal
@@ -325,10 +281,6 @@ Template Abysmal
 	AimFocusDecay = 0.15
 	AimFocusOffsetScale = 0.15
 	AimfocusInterval = 0.15
-  LookAngleMaxAccelNormal = 20000.0
-  LookAngleMaxAccelAttacking = 9500.0
-  LookAngleStiffnessAttacking = 600.0
-  LookAngleDampingAttacking = 27.5
 End
 
 //----------------------------------------------------------------------------
