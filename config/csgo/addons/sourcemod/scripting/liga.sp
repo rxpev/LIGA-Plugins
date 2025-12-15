@@ -29,11 +29,7 @@ const int     TEAM_CT                               = 1;
 enum Cvars {
   DELAY_GAME_OVER,
   MAX_ROUNDS,
-  OVERTIME_ENABLE,
-  OVERTIME_MAX_ROUNDS,
   SPECTATING,
-  TEAM_NAME_T,
-  TEAM_NAME_CT,
 }
 ConVar cvars[Cvars];
 
@@ -55,29 +51,28 @@ EngineVersion gameEngine                            = Engine_Unknown;
  * Plugin information.
  */
 public Plugin myinfo = {
-  name        = "LIGA Esports Manager",
-  author      = "LIGA Esports Manager",
-  description = "LIGA Esports Manager",
-  version     = "1.0.4",
-  url         = "https://playliga.gg"
+  name        = "LIGA: Pro Journey",
+  author      = "Rxpev",
+  description = "Match Flow Plugin",
+  version     = "1.0.5",
+  url         = "http://steamcommunity.com/id/rxpev"
 }
 
 /**
  * Plugin initialization.
  */
 public void OnPluginStart() {
-  cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "5");
+  cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "10");
   cvars[SPECTATING] = CreateConVar("liga_spectating", "0");
   gameEngine = GetEngineVersion();
 
   HookEvent("player_team", Event_JoinTeam);
   RegConsoleCmd("ready", Command_ReadyUp, "Starts the match.");
 
-  if(gameEngine == Engine_CSGO) {
-    cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
-    HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
-    HookEvent("round_start", Event_CSGO_RoundStart);
-  }
+
+  cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
+  HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
+  HookEvent("round_start", Event_CSGO_RoundStart);
 
   // intercept log messages when needed
   AddGameLogHook(Hook_Log);
@@ -102,121 +97,9 @@ public Action Command_ReadyUp(int id, int args) {
 
   // execute the configs
   ServerCommand("competitive");
-  CreateTimer(float(INTERVAL_LO3), Timer_LO3, _, LO3_LOOP_NUM);
 
   if(overTime) {
     ServerCommand("overtime");
-  }
-
-  return Plugin_Continue;
-}
-
-/**
- * Triggered when the round is over.
- *
- * @param delay Time (in seconds) until new round starts.
- * @param reason Reason for round end.
- */
-public Action CS_OnTerminateRound(float &delay, CSRoundEndReason &reason) {
-  if(gameEngine == Engine_CSGO) {
-    return Plugin_Continue;
-  }
-
-  // bail if game is not live
-  if(!live) {
-    return Plugin_Continue;
-  }
-
-  // grab the winner of this round
-  int winner = 0;
-
-  for (int i = 0; i < sizeof(reasonWinTs); i++) {
-    if (reasonWinTs[i] == view_as<int>(reason)) {
-      winner = TEAM_T;
-      break;
-    }
-  }
-
-  for (int i = 0; i < sizeof(reasonWinCTs); i++) {
-    if (reasonWinCTs[i] == view_as<int>(reason)) {
-      winner = TEAM_CT;
-      break;
-    }
-  }
-
-  // invert score if past half-time or in overtime
-  //
-  // in overtime, it gets a bit tricky because sides
-  // are not switched at the start of each half
-  bool invert = halfTime;
-
-  if(overTime) {
-    int roundsTotalAll = getArraySum(score, sizeof(score));
-    int roundsTotalOverTime = roundsTotalAll - cvars[MAX_ROUNDS].IntValue;
-    int overTimeNum = roundsTotalOverTime / cvars[OVERTIME_MAX_ROUNDS].IntValue;
-    int overTimePeriod = overTimeNum + 1; // increment to 1-based
-
-    // only swap on 1st-half of odd-numbered overtimes
-    if(overTimePeriod % 2 == 1) {
-        invert = !halfTime;
-    }
-  }
-
-  if(invert) {
-    score[1 - winner]++;
-    scoreOverTime[1 - winner] += overTime ? 1 : 0;
-  } else {
-    score[winner]++;
-    scoreOverTime[winner] += overTime ? 1 : 0;
-  }
-
-  // grab team scores
-  int scoreTs = getScore(TEAM_T);
-  int scoreCTs = getScore(TEAM_CT);
-
-  // grab round information
-  int roundsMax = overTime ? cvars[OVERTIME_MAX_ROUNDS].IntValue : cvars[MAX_ROUNDS].IntValue;
-  int roundsTotal = getArraySum(overTime ? scoreOverTime : score, sizeof(score));
-  int roundsHalfTime = roundsMax / 2;
-  int roundsClinch = roundsMax / 2 + 1;
-  bool roundsLast = scoreTs == roundsClinch - 1 || scoreCTs == roundsClinch - 1;
-
-  // report score
-  sayScore(roundsLast ? "GAME POINT" : "ROUND OVER");
-
-  // handle half-time
-  if(roundsTotal == roundsHalfTime) {
-    say("HALFTIME");
-    CreateTimer(float(DELAY_HALF_TIME), Timer_HalfTime);
-    CreateTimer(float(DELAY_WELCOME_MESSAGE), Timer_WelcomeMessage);
-    CreateTimer(float(INTERVAL_WELCOME_MESSAGE), Timer_WelcomeMessage, 0, TIMER_REPEAT);
-    return Plugin_Continue;
-  }
-
-  // handle overtime
-  if(
-    roundsTotal == roundsMax &&
-    cvars[OVERTIME_ENABLE].BoolValue &&
-    scoreTs == scoreCTs
-  ) {
-    overTime = true;
-    scoreOverTime = {0,0};
-    say("OVERTIME");
-    CreateTimer(float(DELAY_HALF_TIME), Timer_HalfTime);
-    CreateTimer(float(DELAY_WELCOME_MESSAGE), Timer_WelcomeMessage);
-    CreateTimer(float(INTERVAL_WELCOME_MESSAGE), Timer_WelcomeMessage, 0, TIMER_REPEAT);
-    return Plugin_Continue;
-  }
-
-  // game is over
-  if(
-    roundsTotal == roundsMax ||
-    scoreTs == roundsClinch ||
-    scoreCTs == roundsClinch
-  ) {
-    say("GAME OVER");
-    say("SHUTTING DOWN SERVER IN %ds...", cvars[DELAY_GAME_OVER].IntValue);
-    CreateTimer(float(cvars[DELAY_GAME_OVER].IntValue), Timer_GameOver);
   }
 
   return Plugin_Continue;
@@ -294,10 +177,6 @@ public Action Hook_Log(char[] message) {
       return Plugin_Handled;
   }
 
-  if(gameEngine == Engine_CSS && intercept && !live) {
-      return Plugin_Handled;
-  }
-
   // otherwise we let the log message go
   return Plugin_Continue;
 }
@@ -315,74 +194,7 @@ public void OnClientPutInServer(int id) {
 
   if(!IsFakeClient(id)) {
     ServerCommand("exec liga-bots");
-    ForceTeamCheck(id);
   }
-}
-
-/**
- * Called when the map is loaded.
- *
- * A good place to precache models, sounds, etc.
- */
-public void OnMapStart() {
-  if(gameEngine == Engine_CSS) {
-    for(int i = 0; i < sizeof(modelsTs); i++) {
-      PrecacheModel(modelsTs[i], true);
-      PrecacheModel(modelsCTs[i], true);
-    }
-  }
-}
-
-/**
- * Assigns the bomb to the player.
- *
- * @param timer The timer handler.
- * @param id The index of the player.
- */
-
-/**
- * Assigns the player to their team.
- *
- * @param timer The timer handler.
- * @param id The index of the player.
- */
-public Action Timer_ForceTeam(Handle timer, int id) {
-  if(cvars[SPECTATING].BoolValue) {
-    ClientCommand(id, "jointeam %d", 1);
-    return Plugin_Handled;
-  }
-
-  // let csgo handle auto-assigning
-  // if we're not spectating
-  if(gameEngine != Engine_CSS) {
-    return Plugin_Handled;
-  }
-
-  ClientCommand(id, "jointeam %d", 0);
-  ClientCommand(id, "joinclass %d", 0);
-  return Plugin_Handled;
-}
-
-/**
- * Live on three restart timer.
- *
- * @param timer The timer handler.
- */
-public Action Timer_LO3(Handle timer) {
-  static int i = 0;
-  ServerCommand("mp_restartgame 1");
-  say("RESTART %d", i + 1);
-  sayX(LO3_PRINT_NUM, "* * * %d * * *", i + 1);
-
-  if(i == LO3_LOOP_NUM - 1) {
-    i = 0;
-    live = true;
-    sayX(LO3_PRINT_NUM + 1, "* * * ---LIVE--- * * *");
-    return Plugin_Stop;
-  }
-
-  i++;
-  return Plugin_Continue;
 }
 
 /**
@@ -405,20 +217,25 @@ public Action Timer_HalfTime(Handle timer) {
   return Plugin_Continue;
 }
 
-/**
- * Exits the game once the game is over.
- *
- * @param timer The timer handler.
- */
-public Action Timer_GameOver(Handle timer) {
-  if(gameEngine == Engine_CSS) {
-    GetCurrentMap(buffer, BUFFER_SIZE_MAX);
-    LogToGame("Game Over: competitive  %s score %d:%d", buffer, score[TEAM_T], score[TEAM_CT]);
-  }
+public Action Timer_GameOver(Handle timer)
+{
+    for (int client = 1; client <= MaxClients; client++)
+    {
+        if (!IsClientInGame(client) || IsFakeClient(client))
+            continue;
 
-  // shut the server down
-  ServerCommand("exit");
-  return Plugin_Continue;
+        ClientCommand(client, "quit");
+    }
+
+    // Delay so the command has time to reach the client
+    CreateTimer(0.5, Timer_ExitServer, _, TIMER_FLAG_NO_MAPCHANGE);
+    return Plugin_Stop;
+}
+
+public Action Timer_ExitServer(Handle timer)
+{
+    ServerCommand("exit");
+    return Plugin_Stop;
 }
 
 /**
@@ -430,10 +247,8 @@ public Action Timer_GameOver(Handle timer) {
  */
 public Action Timer_WelcomeMessage(Handle timer, int id) {
   // bail if we're live
-  if(
-    (gameEngine == Engine_CSS && live) ||
-    (gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") != 1)
-  ) {
+  if(gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") != 1)
+  {
     return Plugin_Stop;
   }
 
@@ -441,22 +256,9 @@ public Action Timer_WelcomeMessage(Handle timer, int id) {
     say("YOU ARE SPECTATING THIS MATCH.");
   }
 
-  say("TO START THE MATCH TYPE: .ready");
-
-  if(gameEngine == Engine_CSS) {
-    say("ONCE LIVE TO CHECK THE SCORE TYPE: .score");
-  }
+  say("TO START THE MATCH TYPE: !ready");
 
   return Plugin_Continue;
-}
-
-/**
- * Enforces player to team assignments.
- *
- * @param id The index of the player.
- */
-void ForceTeamCheck(int id) {
-  CreateTimer(float(DELAY_FORCE_TEAM), Timer_ForceTeam, id, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
@@ -496,29 +298,7 @@ int getScore(int id) {
  */
 public void say(const char[] message, any ...) {
   VFormat(buffer, sizeof(buffer), message, 2);
-  PrintToChatAll("<%s> %s", hostname, buffer);
-}
-
-/**
- * Prints the score to the client.
- *
- * @param prefix Whether to print a prefix.
- */
-void sayScore(char[] prefix = "") {
-  char nameTs[BUFFER_SIZE_MAX + 1];
-  char nameCTs[BUFFER_SIZE_MAX + 1];
-  int score_t = score[TEAM_T];
-  int score_ct = score[TEAM_CT];
-
-  cvars[TEAM_NAME_T].GetString(nameTs, BUFFER_SIZE_MAX);
-  cvars[TEAM_NAME_CT].GetString(nameCTs, BUFFER_SIZE_MAX);
-
-  if(strlen(prefix) > 0) {
-    say("%s | %s %d - %d %s", prefix, nameTs, score_t, score_ct, nameCTs);
-    return;
-  }
-
-  say("%s %d - %d %s", nameTs, score_t, score_ct, nameCTs);
+   PrintToChatAll("\x01\x04<%s>\x01 %s", hostname, buffer);
 }
 
 /**
