@@ -217,25 +217,16 @@ public Action Timer_HalfTime(Handle timer) {
   return Plugin_Continue;
 }
 
-public Action Timer_GameOver(Handle timer)
-{
-    for (int client = 1; client <= MaxClients; client++)
-    {
-        if (!IsClientInGame(client) || IsFakeClient(client))
-            continue;
+/**
+ * Exits the game once the game is over.
+ *
+ * @param timer The timer handler.
+ */
+public Action Timer_GameOver(Handle timer) {
 
-        ClientCommand(client, "quit");
-    }
-
-    // Delay so the command has time to reach the client
-    CreateTimer(0.5, Timer_ExitServer, _, TIMER_FLAG_NO_MAPCHANGE);
-    return Plugin_Stop;
-}
-
-public Action Timer_ExitServer(Handle timer)
-{
-    ServerCommand("exit");
-    return Plugin_Stop;
+  // shut the server down
+  ServerCommand("exit");
+  return Plugin_Continue;
 }
 
 /**
