@@ -1,6 +1,6 @@
 {
   "name": "@liga/plugins",
-  "version": "2.9.7",
+  "version": "2.9.8",
   "type": "module",
   "main": "src/compiler.ts",
   "description": "AMX Mod X and SourceMod Plugins for LIGA Esports Manager.",
