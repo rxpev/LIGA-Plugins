@@ -24,6 +24,8 @@ char          MENU_TEAM_SELECT_CT[]                 = "class_ct";
 char          MENU_TEAM_SELECT_T []                 = "class_ter";
 const int     TEAM_T                                = 0;
 const int     TEAM_CT                               = 1;
+const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
+bool          reexecLigaBotsPending                 = false;
 
 // cvars
 enum Cvars {
@@ -63,18 +65,16 @@ public Plugin myinfo = {
  */
 public void OnPluginStart() {
   cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "10");
-  cvars[SPECTATING] = CreateConVar("liga_spectating", "0");
+  cvars[SPECTATING]      = CreateConVar("liga_spectating", "0");
   gameEngine = GetEngineVersion();
 
   HookEvent("player_team", Event_JoinTeam);
   RegConsoleCmd("ready", Command_ReadyUp, "Starts the match.");
 
-
   cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
   HookEvent("round_start", Event_CSGO_RoundStart);
 
-  // intercept log messages when needed
   AddGameLogHook(Hook_Log);
 }
 
@@ -195,6 +195,25 @@ public void OnClientPutInServer(int id) {
   if(!IsFakeClient(id)) {
     ServerCommand("exec liga-bots");
   }
+}
+
+public void OnClientDisconnect(int client)
+{
+  if (client <= 0 || client > MaxClients) return;
+  if (!IsFakeClient(client)) return;
+
+  // debounce so multiple bot disconnects in quick succession only trigger once
+  if (reexecLigaBotsPending) return;
+
+  reexecLigaBotsPending = true;
+  CreateTimer(DELAY_REEXEC_LIGABOTS, Timer_ReExecLigaBots);
+}
+
+public Action Timer_ReExecLigaBots(Handle timer)
+{
+  reexecLigaBotsPending = false;
+  ServerCommand("exec liga-bots");
+  return Plugin_Stop;
 }
 
 /**
