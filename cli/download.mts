@@ -99,8 +99,8 @@ async function extract(from: string, to: string) {
   throw new Error(`Unsupported archive format: ${from}`);
 }
 
-function getSourceModEndpoints() {
-  if (process.platform === "win32") {
+function getSourceModEndpoints(platform: NodeJS.Platform = process.platform) {
+  if (platform === "win32") {
     return {
       sourcemod: Endpoint.SOURCEMOD_WINDOWS,
       metamodSource: Endpoint.METAMOD_SOURCE_WINDOWS,
@@ -166,10 +166,10 @@ async function handlerAMXX() {
  *
  * @function
  */
-async function handlerSourceMod() {
+async function handlerSourceMod(platform?: NodeJS.Platform) {
   const files = [] as Array<string>;
   const games = ["csgo"];
-  const endpoints = getSourceModEndpoints();
+  const endpoints = getSourceModEndpoints(platform);
 
   console.log(">> Downloading SourceMod...");
   files.push(await download(endpoints.sourcemod, DOWNLOAD_DIR));
@@ -201,13 +201,13 @@ async function handlerSourceMod() {
  * @param type The type of mod to download and install.
  * @function
  */
-async function handler(type?: string) {
+async function handler(type?: string, options?: { platform?: NodeJS.Platform }) {
   if (!type || type === Mod.AMXX) {
     await handlerAMXX();
   }
 
   if (!type || type === Mod.SOURCEMOD) {
-    await handlerSourceMod();
+    await handlerSourceMod(options?.platform);
   }
 
   return Promise.resolve();
@@ -224,7 +224,20 @@ async function handler(type?: string) {
     .description(AppInfo.description)
     .version(AppInfo.version)
     .argument("[type]", "The type of mod to download and install.")
-    .action(handler);
+    .option(
+      "-p, --platform <platform>",
+      "Override target platform for SourceMod artifacts (win32/linux). Defaults to current runtime platform.",
+    )
+    .action(async (type: string | undefined, options: { platform?: string }) => {
+      const platformOption = options.platform ?? process.env.LIGA_TARGET_PLATFORM;
+      const normalized = platformOption?.toLowerCase() as NodeJS.Platform | undefined;
+
+      if (normalized && normalized !== "win32" && normalized !== "linux") {
+        throw new Error(`Unsupported platform override: ${platformOption}`);
+      }
+
+      await handler(type, { platform: normalized });
+    });
 
   try {
     await program.parseAsync(process.argv);
