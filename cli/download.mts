@@ -19,10 +19,8 @@ enum Endpoint {
   AMXX = "https://www.amxmodx.org/amxxdrop/1.9/amxmodx-1.9.0-git5294-base-windows.zip",
   AMXX_CSTRIKE = "https://www.amxmodx.org/amxxdrop/1.9/amxmodx-1.9.0-git5294-cstrike-windows.zip",
   METAMOD = "https://www.amxmodx.org/release/metamod-1.21.1-am.zip",
-  METAMOD_SOURCE_WINDOWS = "https://mms.alliedmods.net/mmsdrop/1.12/mmsource-1.12.0-git1217-windows.zip",
-  METAMOD_SOURCE_LINUX = "https://mms.alliedmods.net/mmsdrop/1.12/mmsource-1.12.0-git1217-linux.tar.gz",
-  SOURCEMOD_WINDOWS = "https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7193-windows.zip",
-  SOURCEMOD_LINUX = "https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7193-linux.tar.gz",
+  METAMOD_SOURCE = "https://mms.alliedmods.net/mmsdrop/1.12/mmsource-1.12.0-git1217-windows.zip",
+  SOURCEMOD = "https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7193-windows.zip",
 }
 
 /** @enum */
@@ -88,29 +86,7 @@ async function extract(from: string, to: string) {
     await fs.promises.mkdir(to, { recursive: true });
   }
 
-  if (from.endsWith(".zip")) {
-    return compressing.zip.uncompress(from, to);
-  }
-
-  if (from.endsWith(".tar.gz") || from.endsWith(".tgz")) {
-    return compressing.tgz.uncompress(from, to);
-  }
-
-  throw new Error(`Unsupported archive format: ${from}`);
-}
-
-function getSourceModEndpoints(platform: NodeJS.Platform = process.platform) {
-  if (platform === "win32") {
-    return {
-      sourcemod: Endpoint.SOURCEMOD_WINDOWS,
-      metamodSource: Endpoint.METAMOD_SOURCE_WINDOWS,
-    };
-  }
-
-  return {
-    sourcemod: Endpoint.SOURCEMOD_LINUX,
-    metamodSource: Endpoint.METAMOD_SOURCE_LINUX,
-  };
+  return compressing.zip.uncompress(from, to);
 }
 
 /**
@@ -166,16 +142,15 @@ async function handlerAMXX() {
  *
  * @function
  */
-async function handlerSourceMod(platform?: NodeJS.Platform) {
+async function handlerSourceMod() {
   const files = [] as Array<string>;
   const games = ["csgo"];
-  const endpoints = getSourceModEndpoints(platform);
 
   console.log(">> Downloading SourceMod...");
-  files.push(await download(endpoints.sourcemod, DOWNLOAD_DIR));
+  files.push(await download(Endpoint.SOURCEMOD, DOWNLOAD_DIR));
 
   console.log(">> Downloading SourceMod dependencies...");
-  files.push(await download(endpoints.metamodSource, DOWNLOAD_DIR));
+  files.push(await download(Endpoint.METAMOD_SOURCE, DOWNLOAD_DIR));
 
   // now extract everything
   console.log(">> Extracting SourceMod files...");
@@ -201,13 +176,13 @@ async function handlerSourceMod(platform?: NodeJS.Platform) {
  * @param type The type of mod to download and install.
  * @function
  */
-async function handler(type?: string, options?: { platform?: NodeJS.Platform }) {
+async function handler(type?: string) {
   if (!type || type === Mod.AMXX) {
     await handlerAMXX();
   }
 
   if (!type || type === Mod.SOURCEMOD) {
-    await handlerSourceMod(options?.platform);
+    await handlerSourceMod();
   }
 
   return Promise.resolve();
@@ -224,20 +199,7 @@ async function handler(type?: string, options?: { platform?: NodeJS.Platform }) 
     .description(AppInfo.description)
     .version(AppInfo.version)
     .argument("[type]", "The type of mod to download and install.")
-    .option(
-      "-p, --platform <platform>",
-      "Override target platform for SourceMod artifacts (win32/linux). Defaults to current runtime platform.",
-    )
-    .action(async (type: string | undefined, options: { platform?: string }) => {
-      const platformOption = options.platform ?? process.env.LIGA_TARGET_PLATFORM;
-      const normalized = platformOption?.toLowerCase() as NodeJS.Platform | undefined;
-
-      if (normalized && normalized !== "win32" && normalized !== "linux") {
-        throw new Error(`Unsupported platform override: ${platformOption}`);
-      }
-
-      await handler(type, { platform: normalized });
-    });
+    .action(handler);
 
   try {
     await program.parseAsync(process.argv);
