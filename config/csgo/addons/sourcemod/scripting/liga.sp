@@ -38,6 +38,7 @@ ConVar cvars[Cvars];
 // variables
 bool          live, halfTime, overTime              = false;
 bool          welcomed                              = false;
+bool          isMatchPaused                         = false;
 char          buffer[BUFFER_SIZE_MAX + 1]           = "";
 char          hostname[BUFFER_SIZE_SM + 1]          = "";
 char          modelsTs[][]                          = {"models/player/t_guerilla.mdl", "models/player/t_leet.mdl", "models/player/t_phoenix.mdl"};
@@ -70,6 +71,8 @@ public void OnPluginStart() {
 
   HookEvent("player_team", Event_JoinTeam);
   RegConsoleCmd("ready", Command_ReadyUp, "Starts the match.");
+  RegConsoleCmd("sm_pause", Command_Pause, "Pauses the match.");
+  RegConsoleCmd("sm_unpause", Command_Unpause, "Unpauses the match.");
 
   cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
@@ -103,6 +106,40 @@ public Action Command_ReadyUp(int id, int args) {
   }
 
   return Plugin_Continue;
+}
+
+public Action Command_Pause(int client, int args) {
+  if (gameEngine != Engine_CSGO) {
+    return Plugin_Handled;
+  }
+
+  if (isMatchPaused) {
+    say("MATCH IS ALREADY PAUSED.");
+    return Plugin_Handled;
+  }
+
+  ServerCommand("mp_pause_match");
+  isMatchPaused = true;
+  say("MATCH PAUSED.");
+
+  return Plugin_Handled;
+}
+
+public Action Command_Unpause(int client, int args) {
+  if (gameEngine != Engine_CSGO) {
+    return Plugin_Handled;
+  }
+
+  if (!isMatchPaused) {
+    say("MATCH IS NOT PAUSED.");
+    return Plugin_Handled;
+  }
+
+  ServerCommand("mp_unpause_match");
+  isMatchPaused = false;
+  say("MATCH UNPAUSED.");
+
+  return Plugin_Handled;
 }
 
 /**
