@@ -378,14 +378,14 @@
 					"patch"		"\x90\x90\x90\x90\x90\x90\x90\x90"
 				}
 			}
-			"CCSBot::Blind::DontWait"
+			"CCSBot::Blind::SkipWait"
 			{
 				"signature" "CCSBot::Blind"
 				"windows"
 				{
-					"offset"	"73h"
-					"verify"	"\xF3\x0F\x10\x48\x10"
-					"patch"		"\x90\x90\x90\x90\x90"
+					"offset"	"62h"
+					"verify"	"\x8D\xBE\x38\x57\x00\x00"
+					"patch"		"\xE9\x8B\x00\x00\x00\x90"
 				}
 			}
 			"CCSBot::FindMostDangerousThreat::AlwaysNotice"
