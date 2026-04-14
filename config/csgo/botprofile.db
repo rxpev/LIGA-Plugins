@@ -98,9 +98,8 @@ End
 
 // weapon preference templates
 Template Rifle
-    WeaponPreference = ak47
-    WeaponPreference = aug
-    WeaponPreference = m4a1_silencer
+	    WeaponPreference = ak47
+	    WeaponPreference = m4a1_silencer
 		WeaponPreference = m4a1
 		WeaponPreference = galilar
 		WeaponPreference = famas
@@ -113,7 +112,6 @@ End
 Template Sniper
 		WeaponPreference = awp
 		WeaponPreference = ak47
-		WeaponPreference = aug
 		WeaponPreference = m4a1_silencer
 		WeaponPreference = m4a1
 		WeaponPreference = galilar
