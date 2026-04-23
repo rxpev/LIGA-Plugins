@@ -80,7 +80,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
         return;
 
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (!IsValidClient(client) || !IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_CT)
+    if (!IsValidClient(client) || IsFakeClient(client) || !IsPlayerAlive(client) || GetClientTeam(client) != CS_TEAM_CT)
         return;
 
     int weapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
@@ -107,7 +107,7 @@ public Action CS_OnBuyCommand(int client, const char[] weapon)
     if (!g_bEnableM4A1)
         return Plugin_Continue;
 
-    if (!IsValidClient(client) || GetClientTeam(client) != CS_TEAM_CT)
+    if (!IsValidClient(client) || IsFakeClient(client) || GetClientTeam(client) != CS_TEAM_CT)
         return Plugin_Continue;
 
     if (StrEqual(weapon, "m4a1", false))
@@ -126,7 +126,7 @@ public Action Timer_ReplaceM4A4(Handle timer, DataPack pack)
     pack.Reset();
     int client = GetClientOfUserId(pack.ReadCell());
 
-    if (!IsValidClient(client) || !IsPlayerAlive(client))
+    if (!IsValidClient(client) || IsFakeClient(client) || !IsPlayerAlive(client))
         return Plugin_Stop;
 
     // Re-check cached state at execution time
