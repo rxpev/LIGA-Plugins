@@ -9,17 +9,19 @@ public Plugin myinfo =
 {
     name = "Weapon Replacer",
     author = "Rxpev",
-    description = "Replaces P2000 with USP-S on spawn and M4A4 with M4A1-S on purchase for CTs",
-    version = "1.6",
+    description = "Replaces P2000 with USP-S on spawn, M4A4 with M4A1-S on purchase, and Five-SeveN/Tec-9 with CZ75-Auto",
+    version = "1.7",
     url = "https://steamcommunity.com/id/rxpev/"
 };
 
 ConVar g_cvIsUSP = null;
 ConVar g_cvIsM4A1 = null;
+ConVar g_cvIsCZ = null;
 
 // Cached enabled states (updated after configs execute and when cvars change)
 bool g_bEnableUSP = false;
 bool g_bEnableM4A1 = false;
+bool g_bEnableCZ = false;
 
 public void OnPluginStart()
 {
@@ -50,9 +52,23 @@ public void OnPluginStart()
         );
     }
 
+    g_cvIsCZ = FindConVar("isCZ");
+    if (g_cvIsCZ == null)
+    {
+        g_cvIsCZ = CreateConVar(
+            "isCZ",
+            "0",
+            "If 1, replace Five-SeveN/Tec-9 purchase with CZ75-Auto. If 0, do nothing.",
+            FCVAR_NOTIFY,
+            true, 0.0,
+            true, 1.0
+        );
+    }
+
     // React to runtime changes too
     g_cvIsUSP.AddChangeHook(OnCvarChanged);
     g_cvIsM4A1.AddChangeHook(OnCvarChanged);
+    g_cvIsCZ.AddChangeHook(OnCvarChanged);
 
     HookEvent("player_spawn", Event_PlayerSpawn);
 }
@@ -72,6 +88,7 @@ void RefreshToggleCache()
 {
     g_bEnableUSP  = (g_cvIsUSP != null && g_cvIsUSP.IntValue == 1);
     g_bEnableM4A1 = (g_cvIsM4A1 != null && g_cvIsM4A1.IntValue == 1);
+    g_bEnableCZ   = (g_cvIsCZ != null && g_cvIsCZ.IntValue == 1);
 }
 
 public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
@@ -104,18 +121,31 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 
 public Action CS_OnBuyCommand(int client, const char[] weapon)
 {
-    if (!g_bEnableM4A1)
+    if (!IsValidClient(client) || IsFakeClient(client))
         return Plugin_Continue;
 
-    if (!IsValidClient(client) || IsFakeClient(client) || GetClientTeam(client) != CS_TEAM_CT)
-        return Plugin_Continue;
+    int team = GetClientTeam(client);
 
-    if (StrEqual(weapon, "m4a1", false))
+    if (g_bEnableM4A1 && team == CS_TEAM_CT && StrEqual(weapon, "m4a1", false))
     {
         DataPack pack;
         CreateDataTimer(0.1, Timer_ReplaceM4A4, pack);
         pack.WriteCell(GetClientUserId(client));
         return Plugin_Handled;
+    }
+
+    if (g_bEnableCZ)
+    {
+        bool replaceFiveSeven = (team == CS_TEAM_CT && StrEqual(weapon, "fiveseven", false));
+        bool replaceTec9 = (team == CS_TEAM_T && StrEqual(weapon, "tec9", false));
+
+        if (replaceFiveSeven || replaceTec9)
+        {
+            DataPack pack;
+            CreateDataTimer(0.1, Timer_ReplaceCZ, pack);
+            pack.WriteCell(GetClientUserId(client));
+            return Plugin_Handled;
+        }
     }
 
     return Plugin_Continue;
@@ -154,6 +184,41 @@ public Action Timer_ReplaceM4A4(Handle timer, DataPack pack)
     }
 
     GivePlayerItem(client, "weapon_m4a1_silencer");
+    return Plugin_Stop;
+}
+
+public Action Timer_ReplaceCZ(Handle timer, DataPack pack)
+{
+    pack.Reset();
+    int client = GetClientOfUserId(pack.ReadCell());
+
+    if (!IsValidClient(client) || IsFakeClient(client) || !IsPlayerAlive(client))
+        return Plugin_Stop;
+
+    // Re-check cached state at execution time
+    if (!g_bEnableCZ)
+        return Plugin_Stop;
+
+    int team = GetClientTeam(client);
+    if (team != CS_TEAM_CT && team != CS_TEAM_T)
+        return Plugin_Stop;
+
+    int money = GetEntProp(client, Prop_Send, "m_iAccount");
+    const int CZ75_PRICE = 500;
+
+    if (money < CZ75_PRICE)
+        return Plugin_Stop;
+
+    SetEntProp(client, Prop_Send, "m_iAccount", money - CZ75_PRICE);
+
+    int weapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
+    if (weapon != -1 && IsValidEntity(weapon))
+    {
+        RemovePlayerItem(client, weapon);
+        AcceptEntityInput(weapon, "Kill");
+    }
+
+    GivePlayerItem(client, "weapon_cz75a");
     return Plugin_Stop;
 }
 
