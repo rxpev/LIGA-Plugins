@@ -23,6 +23,9 @@ bool g_bEnableUSP = false;
 bool g_bEnableM4A1 = false;
 bool g_bEnableCZ = false;
 
+float g_flLastM4A1SBuy[MAXPLAYERS + 1];
+float g_flLastCZ75Buy[MAXPLAYERS + 1];
+
 public void OnPluginStart()
 {
     // Bind to existing cvars if they exist, otherwise create them.
@@ -128,9 +131,7 @@ public Action CS_OnBuyCommand(int client, const char[] weapon)
 
     if (g_bEnableM4A1 && team == CS_TEAM_CT && StrEqual(weapon, "m4a1", false))
     {
-        DataPack pack;
-        CreateDataTimer(0.1, Timer_ReplaceM4A4, pack);
-        pack.WriteCell(GetClientUserId(client));
+        BuyM4A1S(client);
         return Plugin_Handled;
     }
 
@@ -141,9 +142,7 @@ public Action CS_OnBuyCommand(int client, const char[] weapon)
 
         if (replaceFiveSeven || replaceTec9)
         {
-            DataPack pack;
-            CreateDataTimer(0.1, Timer_ReplaceCZ, pack);
-            pack.WriteCell(GetClientUserId(client));
+            BuyCZ75(client);
             return Plugin_Handled;
         }
     }
@@ -151,75 +150,68 @@ public Action CS_OnBuyCommand(int client, const char[] weapon)
     return Plugin_Continue;
 }
 
-public Action Timer_ReplaceM4A4(Handle timer, DataPack pack)
+void BuyM4A1S(int client)
 {
-    pack.Reset();
-    int client = GetClientOfUserId(pack.ReadCell());
-
     if (!IsValidClient(client) || IsFakeClient(client) || !IsPlayerAlive(client))
-        return Plugin_Stop;
+        return;
 
     // Re-check cached state at execution time
     if (!g_bEnableM4A1)
-        return Plugin_Stop;
+        return;
 
     int money = GetEntProp(client, Prop_Send, "m_iAccount");
     const int M4A1S_PRICE = 2900;
 
     if (money < M4A1S_PRICE)
-        return Plugin_Stop;
+        return;
 
-    SetEntProp(client, Prop_Send, "m_iAccount", money - M4A1S_PRICE);
+    float gameTime = GetGameTime();
+    if (g_flLastM4A1SBuy[client] > 0.0 && gameTime >= g_flLastM4A1SBuy[client] && gameTime - g_flLastM4A1SBuy[client] < 0.2)
+        return;
 
     int weapon = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
     if (weapon != -1 && IsValidEntity(weapon))
     {
-        char weaponName[32];
-        GetEntityClassname(weapon, weaponName, sizeof(weaponName));
-        if (StrEqual(weaponName, "weapon_m4a1"))
-        {
-            RemovePlayerItem(client, weapon);
-            AcceptEntityInput(weapon, "Kill");
-        }
+        CS_DropWeapon(client, weapon, true, false);
     }
 
+    g_flLastM4A1SBuy[client] = gameTime;
+    SetEntProp(client, Prop_Send, "m_iAccount", money - M4A1S_PRICE);
     GivePlayerItem(client, "weapon_m4a1_silencer");
-    return Plugin_Stop;
 }
 
-public Action Timer_ReplaceCZ(Handle timer, DataPack pack)
+void BuyCZ75(int client)
 {
-    pack.Reset();
-    int client = GetClientOfUserId(pack.ReadCell());
-
     if (!IsValidClient(client) || IsFakeClient(client) || !IsPlayerAlive(client))
-        return Plugin_Stop;
+        return;
 
     // Re-check cached state at execution time
     if (!g_bEnableCZ)
-        return Plugin_Stop;
+        return;
 
     int team = GetClientTeam(client);
     if (team != CS_TEAM_CT && team != CS_TEAM_T)
-        return Plugin_Stop;
+        return;
 
     int money = GetEntProp(client, Prop_Send, "m_iAccount");
     const int CZ75_PRICE = 500;
 
     if (money < CZ75_PRICE)
-        return Plugin_Stop;
+        return;
 
-    SetEntProp(client, Prop_Send, "m_iAccount", money - CZ75_PRICE);
+    float gameTime = GetGameTime();
+    if (g_flLastCZ75Buy[client] > 0.0 && gameTime >= g_flLastCZ75Buy[client] && gameTime - g_flLastCZ75Buy[client] < 0.2)
+        return;
 
     int weapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
     if (weapon != -1 && IsValidEntity(weapon))
     {
-        RemovePlayerItem(client, weapon);
-        AcceptEntityInput(weapon, "Kill");
+        CS_DropWeapon(client, weapon, true, false);
     }
 
+    g_flLastCZ75Buy[client] = gameTime;
+    SetEntProp(client, Prop_Send, "m_iAccount", money - CZ75_PRICE);
     GivePlayerItem(client, "weapon_cz75a");
-    return Plugin_Stop;
 }
 
 bool IsValidClient(int client)
