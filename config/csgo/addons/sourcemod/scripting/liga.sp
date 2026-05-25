@@ -24,6 +24,7 @@ char          MENU_TEAM_SELECT_CT[]                 = "class_ct";
 char          MENU_TEAM_SELECT_T []                 = "class_ter";
 const int     TEAM_T                                = 0;
 const int     TEAM_CT                               = 1;
+const int     JOIN_TEAM_AUTO                        = 0;
 const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
 bool          reexecLigaBotsPending                 = false;
 
@@ -41,6 +42,7 @@ bool          welcomed                              = false;
 bool          isMatchPaused                         = false;
 char          buffer[BUFFER_SIZE_MAX + 1]           = "";
 char          hostname[BUFFER_SIZE_SM + 1]          = "";
+char          initialHumanTeam[BUFFER_SIZE_SM + 1]  = "";
 char          modelsTs[][]                          = {"models/player/t_guerilla.mdl", "models/player/t_leet.mdl", "models/player/t_phoenix.mdl"};
 char          modelsCTs[][]                         = {"models/player/ct_gign.mdl", "models/player/ct_gsg9.mdl", "models/player/ct_sas.mdl"};
 int           reasonWinCTs[]                        = {4, 5, 6, 7, 10, 11, 13, 16, 19};
@@ -70,6 +72,8 @@ public void OnPluginStart() {
   gameEngine = GetEngineVersion();
 
   HookEvent("player_team", Event_JoinTeam);
+  AddCommandListener(Command_JoinTeam, "jointeam");
+  AddCommandListener(Command_Spectate, "spectate");
   RegConsoleCmd("ready", Command_ReadyUp, "Starts the match.");
   RegConsoleCmd("sm_pause", Command_Pause, "Pauses the match.");
   RegConsoleCmd("sm_unpause", Command_Unpause, "Unpauses the match.");
@@ -79,6 +83,17 @@ public void OnPluginStart() {
   HookEvent("round_start", Event_CSGO_RoundStart);
 
   AddGameLogHook(Hook_Log);
+}
+
+public void OnConfigsExecuted() {
+  if(!StrEqual(initialHumanTeam, "")) {
+    return;
+  }
+
+  ConVar mpHumanTeam = FindConVar("mp_humanteam");
+  if(mpHumanTeam != null) {
+    mpHumanTeam.GetString(initialHumanTeam, sizeof(initialHumanTeam));
+  }
 }
 
 /**
@@ -140,6 +155,66 @@ public Action Command_Unpause(int client, int args) {
   say("MATCH UNPAUSED.");
 
   return Plugin_Handled;
+}
+
+public Action Command_Spectate(int client, const char[] command, int argc) {
+  if(ShouldIgnoreTeamCommand(client)) {
+    return Plugin_Continue;
+  }
+
+  PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
+  return Plugin_Handled;
+}
+
+public Action Command_JoinTeam(int client, const char[] command, int argc) {
+  if(ShouldIgnoreTeamCommand(client) || argc < 1) {
+    return Plugin_Continue;
+  }
+
+  char teamArg[BUFFER_SIZE_SM + 1];
+  GetCmdArg(1, teamArg, sizeof(teamArg));
+
+  int requestedTeam = GetJoinTeamRequest(teamArg);
+  if(requestedTeam == CS_TEAM_SPECTATOR) {
+    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
+    return Plugin_Handled;
+  }
+
+  int currentTeam = GetClientTeam(client);
+  if(currentTeam > CS_TEAM_SPECTATOR) {
+    if(requestedTeam != JOIN_TEAM_AUTO && requestedTeam != currentTeam) {
+      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+    }
+
+    return Plugin_Handled;
+  }
+
+  int allowedTeam = GetAllowedHumanTeam();
+  if(allowedTeam == CS_TEAM_NONE) {
+    if(currentTeam > CS_TEAM_SPECTATOR && requestedTeam != currentTeam) {
+      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+      return Plugin_Handled;
+    }
+
+    return Plugin_Continue;
+  }
+
+  if(requestedTeam == JOIN_TEAM_AUTO) {
+    if(GetClientTeam(client) <= CS_TEAM_SPECTATOR) {
+      ChangeClientTeam(client, allowedTeam);
+    } else if(GetClientTeam(client) != allowedTeam) {
+      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+    }
+
+    return Plugin_Handled;
+  }
+
+  if(requestedTeam != allowedTeam) {
+    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+    return Plugin_Handled;
+  }
+
+  return Plugin_Continue;
 }
 
 /**
@@ -303,9 +378,79 @@ public Action Timer_WelcomeMessage(Handle timer, int id) {
     say("YOU ARE SPECTATING THIS MATCH.");
   }
 
-  say("TO START THE MATCH TYPE: !ready");
+  say("\x0ETO START THE MATCH TYPE: !ready");
 
   return Plugin_Continue;
+}
+
+bool ShouldIgnoreTeamCommand(int client) {
+  return (
+    client <= 0 ||
+    client > MaxClients ||
+    !IsClientInGame(client) ||
+    IsFakeClient(client)
+  );
+}
+
+int GetJoinTeamRequest(const char[] teamArg) {
+  if(StrEqual(teamArg, "0")) {
+    return JOIN_TEAM_AUTO;
+  }
+
+  if(StrEqual(teamArg, "1") || StrEqual(teamArg, "spec", false) || StrEqual(teamArg, "spectate", false) || StrEqual(teamArg, "spectator", false)) {
+    return CS_TEAM_SPECTATOR;
+  }
+
+  if(StrEqual(teamArg, "2") || StrEqual(teamArg, "t", false) || StrEqual(teamArg, "terrorist", false)) {
+    return CS_TEAM_T;
+  }
+
+  if(StrEqual(teamArg, "3") || StrEqual(teamArg, "ct", false)) {
+    return CS_TEAM_CT;
+  }
+
+  return -1;
+}
+
+int GetAllowedHumanTeam() {
+  int team = GetInitialHumanTeam();
+  if(team == CS_TEAM_NONE) {
+    return CS_TEAM_NONE;
+  }
+
+  return HaveTeamsSwapped()
+    ? GetOppositeTeam(team)
+    : team
+  ;
+}
+
+bool HaveTeamsSwapped() {
+  int maxRounds = cvars[MAX_ROUNDS].IntValue;
+  return halfTime || (maxRounds > 0 && rounds > (maxRounds / 2));
+}
+
+int GetInitialHumanTeam() {
+  if(StrEqual(initialHumanTeam, "t", false)) {
+    return CS_TEAM_T;
+  }
+
+  if(StrEqual(initialHumanTeam, "ct", false)) {
+    return CS_TEAM_CT;
+  }
+
+  return CS_TEAM_NONE;
+}
+
+int GetOppositeTeam(int team) {
+  if(team == CS_TEAM_T) {
+    return CS_TEAM_CT;
+  }
+
+  if(team == CS_TEAM_CT) {
+    return CS_TEAM_T;
+  }
+
+  return team;
 }
 
 /**
