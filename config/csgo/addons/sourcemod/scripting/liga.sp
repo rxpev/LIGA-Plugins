@@ -25,6 +25,7 @@ char          MENU_TEAM_SELECT_T []                 = "class_ter";
 const int     TEAM_T                                = 0;
 const int     TEAM_CT                               = 1;
 const int     JOIN_TEAM_AUTO                        = 0;
+const int     OBS_MODE_IN_EYE                       = 4;
 const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
 bool          reexecLigaBotsPending                 = false;
 
@@ -88,6 +89,13 @@ public void OnPluginStart() {
 public void OnConfigsExecuted() {
   if(!StrEqual(initialHumanTeam, "")) {
     return;
+  }
+
+  if(cvars[SPECTATING].BoolValue) {
+    ConVar mpForcePickTime = FindConVar("mp_force_pick_time");
+    if(mpForcePickTime != null) {
+      mpForcePickTime.SetInt(999999);
+    }
   }
 
   ConVar mpHumanTeam = FindConVar("mp_humanteam");
@@ -184,7 +192,7 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
       return Plugin_Continue;
     }
 
-    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You can only join spectators during this match.");
+    RequestFrame(Frame_JoinSpectators, GetClientUserId(client));
     return Plugin_Handled;
   }
 
@@ -318,8 +326,53 @@ public void OnClientPutInServer(int id) {
   }
 
   if(!IsFakeClient(id)) {
+    if(cvars[SPECTATING].BoolValue) {
+      CreateTimer(1.0, Timer_JoinSpectators, GetClientUserId(id));
+      CreateTimer(3.0, Timer_JoinSpectators, GetClientUserId(id));
+    }
+
     ServerCommand("exec liga-bots");
   }
+}
+
+public void Frame_JoinSpectators(int userid) {
+  JoinSpectators(userid);
+}
+
+public Action Timer_JoinSpectators(Handle timer, int userid) {
+  JoinSpectators(userid);
+  return Plugin_Stop;
+}
+
+void JoinSpectators(int userid) {
+  int client = GetClientOfUserId(userid);
+  if(!cvars[SPECTATING].BoolValue || ShouldIgnoreTeamCommand(client)) {
+    return;
+  }
+
+  if(GetClientTeam(client) != CS_TEAM_SPECTATOR) {
+    ChangeClientTeam(client, CS_TEAM_SPECTATOR);
+  }
+
+  int target = GetSpectatorTarget(client);
+  if(target != -1) {
+    SetEntPropEnt(client, Prop_Send, "m_hObserverTarget", target);
+    SetEntProp(client, Prop_Send, "m_iObserverMode", OBS_MODE_IN_EYE);
+    SetEntProp(client, Prop_Data, "m_iObserverLastMode", OBS_MODE_IN_EYE);
+    SetEntityMoveType(client, MOVETYPE_OBSERVER);
+  }
+}
+
+int GetSpectatorTarget(int client) {
+  for(int i = 1; i <= MaxClients; i++) {
+    if(i == client || !IsClientInGame(i) || GetClientTeam(i) <= CS_TEAM_SPECTATOR || !IsPlayerAlive(i)) {
+      continue;
+    }
+
+    return i;
+  }
+
+  return -1;
 }
 
 public void OnClientDisconnect(int client)
