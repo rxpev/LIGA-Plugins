@@ -162,6 +162,10 @@ public Action Command_Spectate(int client, const char[] command, int argc) {
     return Plugin_Continue;
   }
 
+  if(cvars[SPECTATING].BoolValue) {
+    return Plugin_Continue;
+  }
+
   PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
   return Plugin_Handled;
 }
@@ -175,6 +179,15 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
   GetCmdArg(1, teamArg, sizeof(teamArg));
 
   int requestedTeam = GetJoinTeamRequest(teamArg);
+  if(cvars[SPECTATING].BoolValue) {
+    if(requestedTeam == CS_TEAM_SPECTATOR) {
+      return Plugin_Continue;
+    }
+
+    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You can only join spectators during this match.");
+    return Plugin_Handled;
+  }
+
   if(requestedTeam == CS_TEAM_SPECTATOR) {
     PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
     return Plugin_Handled;
