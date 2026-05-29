@@ -27,11 +27,14 @@ const int     TEAM_CT                               = 1;
 const int     JOIN_TEAM_AUTO                        = 0;
 const int     OBS_MODE_IN_EYE                       = 4;
 const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
+const float   MAX_BOT_BOMB_USE_DISTANCE             = 175.0;
+const float   MIN_BOT_BOMB_USE_DOT                  = 0.65;
 bool          reexecLigaBotsPending                 = false;
 
 // cvars
 enum Cvars {
   DELAY_GAME_OVER,
+  IS_IGL,
   MAX_ROUNDS,
   SPECTATING,
 }
@@ -69,6 +72,14 @@ public Plugin myinfo = {
  */
 public void OnPluginStart() {
   cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "10");
+  cvars[IS_IGL]           = CreateConVar(
+    "IsIGL",
+    "0",
+    "0 = restrict bot bomb pickup by +use; 1 = allow bot bomb pickup by +use.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
   cvars[SPECTATING]      = CreateConVar("liga_spectating", "0");
   gameEngine = GetEngineVersion();
 
@@ -84,6 +95,27 @@ public void OnPluginStart() {
   HookEvent("round_start", Event_CSGO_RoundStart);
 
   AddGameLogHook(Hook_Log);
+}
+
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
+  if(
+    !(buttons & IN_USE) ||
+    cvars[IS_IGL].BoolValue ||
+    client <= 0 ||
+    client > MaxClients ||
+    !IsClientInGame(client) ||
+    !IsPlayerAlive(client) ||
+    IsFakeClient(client)
+  ) {
+    return Plugin_Continue;
+  }
+
+  if(!IsUsingBotBombCarrier(client)) {
+    return Plugin_Continue;
+  }
+
+  buttons &= ~IN_USE;
+  return Plugin_Changed;
 }
 
 public void OnConfigsExecuted() {
@@ -447,6 +479,55 @@ public Action Timer_WelcomeMessage(Handle timer, int id) {
   say("\x0ETO START THE MATCH TYPE: !ready");
 
   return Plugin_Continue;
+}
+
+bool IsUsingBotBombCarrier(int client) {
+  float clientEyePosition[3];
+  float clientEyeAngles[3];
+  float clientForward[3];
+
+  GetClientEyePosition(client, clientEyePosition);
+  GetClientEyeAngles(client, clientEyeAngles);
+  GetAngleVectors(clientEyeAngles, clientForward, NULL_VECTOR, NULL_VECTOR);
+  NormalizeVector(clientForward, clientForward);
+
+  int team = GetClientTeam(client);
+  for(int target = 1; target <= MaxClients; target++) {
+    if(
+      target == client ||
+      !IsClientInGame(target) ||
+      !IsPlayerAlive(target) ||
+      !IsFakeClient(target) ||
+      GetClientTeam(target) != team ||
+      !ClientHasBomb(target)
+    ) {
+      continue;
+    }
+
+    float targetEyePosition[3];
+    float direction[3];
+
+    GetClientEyePosition(target, targetEyePosition);
+    direction[0] = targetEyePosition[0] - clientEyePosition[0];
+    direction[1] = targetEyePosition[1] - clientEyePosition[1];
+    direction[2] = targetEyePosition[2] - clientEyePosition[2];
+
+    if(GetVectorLength(direction) > MAX_BOT_BOMB_USE_DISTANCE) {
+      continue;
+    }
+
+    NormalizeVector(direction, direction);
+    if(GetVectorDotProduct(clientForward, direction) >= MIN_BOT_BOMB_USE_DOT) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool ClientHasBomb(int client) {
+  int c4 = GetPlayerWeaponSlot(client, CS_SLOT_C4);
+  return c4 != -1 && IsValidEntity(c4);
 }
 
 bool ShouldIgnoreTeamCommand(int client) {
