@@ -29,11 +29,13 @@ const int     OBS_MODE_IN_EYE                       = 4;
 const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
 const float   MAX_BOT_BOMB_USE_DISTANCE             = 175.0;
 const float   MIN_BOT_BOMB_USE_DOT                  = 0.65;
+const int     REQUIRED_MAX_ROUNDS                   = 24;
 bool          reexecLigaBotsPending                 = false;
 
 // cvars
 enum Cvars {
   DELAY_GAME_OVER,
+  IS_AWP,
   IS_IGL,
   MAX_ROUNDS,
   SPECTATING,
@@ -44,9 +46,12 @@ ConVar cvars[Cvars];
 bool          live, halfTime, overTime              = false;
 bool          welcomed                              = false;
 bool          isMatchPaused                         = false;
+bool          awpRestricted[MAXPLAYERS + 1];
+bool          ecoAwpAllowed[MAXPLAYERS + 1];
 char          buffer[BUFFER_SIZE_MAX + 1]           = "";
 char          hostname[BUFFER_SIZE_SM + 1]          = "";
 char          initialHumanTeam[BUFFER_SIZE_SM + 1]  = "";
+float         lastAwpWarn[MAXPLAYERS + 1];
 char          modelsTs[][]                          = {"models/player/t_guerilla.mdl", "models/player/t_leet.mdl", "models/player/t_phoenix.mdl"};
 char          modelsCTs[][]                         = {"models/player/ct_gign.mdl", "models/player/ct_gsg9.mdl", "models/player/ct_sas.mdl"};
 int           reasonWinCTs[]                        = {4, 5, 6, 7, 10, 11, 13, 16, 19};
@@ -72,6 +77,14 @@ public Plugin myinfo = {
  */
 public void OnPluginStart() {
   cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "10");
+  cvars[IS_AWP]          = CreateConVar(
+    "isAWP",
+    "0",
+    "0 = restrict AWP usage for non-awpers; 1 = allow normal AWP usage.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
   cvars[IS_IGL]           = CreateConVar(
     "IsIGL",
     "0",
@@ -91,13 +104,20 @@ public void OnPluginStart() {
   RegConsoleCmd("sm_unpause", Command_Unpause, "Unpauses the match.");
 
   cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
+  if(cvars[MAX_ROUNDS] != null) {
+    cvars[MAX_ROUNDS].SetInt(REQUIRED_MAX_ROUNDS);
+    cvars[MAX_ROUNDS].AddChangeHook(OnMaxRoundsChanged);
+  }
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
   HookEvent("round_start", Event_CSGO_RoundStart);
+  HookEvent("round_freeze_end", Event_CSGO_FreezeEnd);
 
   AddGameLogHook(Hook_Log);
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
+  Action result = RestrictAwpUsage(client, buttons);
+
   if(
     !(buttons & IN_USE) ||
     cvars[IS_IGL].BoolValue ||
@@ -107,11 +127,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
     !IsPlayerAlive(client) ||
     IsFakeClient(client)
   ) {
-    return Plugin_Continue;
+    return result;
   }
 
   if(!IsUsingBotBombCarrier(client)) {
-    return Plugin_Continue;
+    return result;
   }
 
   buttons &= ~IN_USE;
@@ -119,6 +139,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 }
 
 public void OnConfigsExecuted() {
+  EnforceMaxRounds();
+
   if(!StrEqual(initialHumanTeam, "")) {
     return;
   }
@@ -290,8 +312,18 @@ public void Event_CSGO_GameOver(Event event, const char[] name, bool dontBroadca
  * @param dontBroadcast Whether to broadcast the event.
  */
 public void Event_CSGO_RoundStart(Event event, const char[] name, bool dontBroadcast) {
+  for(int client = 1; client <= MaxClients; client++) {
+    ecoAwpAllowed[client] = false;
+  }
+
   if(GameRules_GetProp("m_bWarmupPeriod") != 1) {
     rounds++;
+  }
+}
+
+public void Event_CSGO_FreezeEnd(Event event, const char[] name, bool dontBroadcast) {
+  for(int client = 1; client <= MaxClients; client++) {
+    ecoAwpAllowed[client] = IsEcoAwpExempt(client);
   }
 }
 
@@ -410,6 +442,11 @@ int GetSpectatorTarget(int client) {
 public void OnClientDisconnect(int client)
 {
   if (client <= 0 || client > MaxClients) return;
+
+  lastAwpWarn[client] = 0.0;
+  awpRestricted[client] = false;
+  ecoAwpAllowed[client] = false;
+
   if (!IsFakeClient(client)) return;
 
   // debounce so multiple bot disconnects in quick succession only trigger once
@@ -523,6 +560,127 @@ bool IsUsingBotBombCarrier(int client) {
   }
 
   return false;
+}
+
+Action RestrictAwpUsage(int client, int &buttons) {
+  if(
+    client <= 0 ||
+    client > MaxClients ||
+    !IsClientInGame(client) ||
+    !IsPlayerAlive(client) ||
+    IsFakeClient(client)
+  ) {
+    return Plugin_Continue;
+  }
+
+  int activeWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+  if(activeWeapon <= 0) {
+    return Plugin_Continue;
+  }
+
+  char classname[64];
+  if(!GetEntityClassname(activeWeapon, classname, sizeof(classname)) || !StrEqual(classname, "weapon_awp", false)) {
+    return Plugin_Continue;
+  }
+
+  int team = GetClientTeam(client);
+  if(team <= CS_TEAM_SPECTATOR) {
+    return Plugin_Continue;
+  }
+
+  float now = GetGameTime();
+  if(GameRules_GetProp("m_bWarmupPeriod") == 1 || cvars[IS_AWP].BoolValue || ecoAwpAllowed[client] || !HasAliveTeammate(client, team)) {
+    if(awpRestricted[client]) {
+      awpRestricted[client] = false;
+      SetEntPropFloat(activeWeapon, Prop_Send, "m_flNextPrimaryAttack", now);
+      SetEntPropFloat(activeWeapon, Prop_Send, "m_flNextSecondaryAttack", now);
+      SetEntPropFloat(client, Prop_Send, "m_flNextAttack", now);
+      lastAwpWarn[client] = 0.0;
+    }
+
+    return Plugin_Continue;
+  }
+
+  awpRestricted[client] = true;
+  if(now - lastAwpWarn[client] >= 5.0) {
+    lastAwpWarn[client] = now;
+    PrintToChat(client, "[PRO JOURNEY] You are not allowed to use the AWP.");
+    PrintCenterText(client, "You are not an AWPer.\nDrop the AWP to your AWPer!");
+  }
+
+  float blockTime = now + 3600.0;
+  SetEntPropFloat(activeWeapon, Prop_Send, "m_flNextPrimaryAttack", blockTime);
+  SetEntPropFloat(activeWeapon, Prop_Send, "m_flNextSecondaryAttack", blockTime);
+  SetEntPropFloat(client, Prop_Send, "m_flNextAttack", blockTime);
+
+  buttons &= ~IN_ATTACK;
+  buttons &= ~IN_ATTACK2;
+  return Plugin_Changed;
+}
+
+bool HasAliveTeammate(int client, int team) {
+  for(int target = 1; target <= MaxClients; target++) {
+    if(
+      target != client &&
+      IsClientInGame(target) &&
+      IsPlayerAlive(target) &&
+      GetClientTeam(target) == team
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool IsEcoAwpExempt(int client) {
+  if(
+    client <= 0 ||
+    client > MaxClients ||
+    !IsClientInGame(client) ||
+    !IsPlayerAlive(client) ||
+    IsFakeClient(client) ||
+    cvars[IS_AWP].BoolValue ||
+    ClientHasPrimary(client)
+  ) {
+    return false;
+  }
+
+  int team = GetClientTeam(client);
+  if(team <= CS_TEAM_SPECTATOR) {
+    return false;
+  }
+
+  for(int teammate = 1; teammate <= MaxClients; teammate++) {
+    if(
+      teammate != client &&
+      IsClientInGame(teammate) &&
+      IsPlayerAlive(teammate) &&
+      GetClientTeam(teammate) == team &&
+      ClientHasPrimary(teammate)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool ClientHasPrimary(int client) {
+  int primary = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
+  return primary != -1 && IsValidEntity(primary);
+}
+
+public void OnMaxRoundsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+  if(convar.IntValue != REQUIRED_MAX_ROUNDS) {
+    convar.SetInt(REQUIRED_MAX_ROUNDS);
+  }
+}
+
+void EnforceMaxRounds() {
+  if(cvars[MAX_ROUNDS] != null && cvars[MAX_ROUNDS].IntValue != REQUIRED_MAX_ROUNDS) {
+    cvars[MAX_ROUNDS].SetInt(REQUIRED_MAX_ROUNDS);
+  }
 }
 
 bool ClientHasBomb(int client) {
