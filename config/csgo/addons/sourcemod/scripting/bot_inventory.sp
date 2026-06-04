@@ -18,6 +18,7 @@ bool g_bBotKnivesLoaded = false;
 JSONObject g_jsonKnifeConfig = null;
 
 bool g_bLateLoaded;
+ConVar g_hIsFaceit = null;
 int g_iWeaponCount;
 int g_iSkinCount;
 int g_iGloveCount;
@@ -114,6 +115,8 @@ public void OnPluginStart()
 		SetFailState("Only CS:GO servers are supported!");
 		return;
 	}
+
+	g_hIsFaceit = FindConVar("isFaceit");
 	
 	if (g_bLateLoaded)
 	{
@@ -1204,7 +1207,7 @@ public Action Event_PlayerDeath(Event eEvent, const char[] szName, bool bDontBro
 
 public Action MdlCh_PlayerSpawn(int client, bool bCustom, char[] szModel, int iModelLength, char[] szVoPrefix, int iPrefixLength)
 {	
-	if (!IsValidClient(client) || g_bUseCustomPlayer[client])
+	if (!IsValidClient(client) || !IsFaceitMode() || g_bUseCustomPlayer[client])
 		return Plugin_Continue;
 	
 	if (GetClientTeam(client) == CS_TEAM_CT)
@@ -1762,6 +1765,14 @@ public void OnPluginEnd()
 stock bool IsValidClient(int client)
 {
 	return client > 0 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client) && IsFakeClient(client) && !IsClientSourceTV(client);
+}
+
+stock bool IsFaceitMode()
+{
+	if (g_hIsFaceit == null)
+		g_hIsFaceit = FindConVar("isFaceit");
+
+	return g_hIsFaceit != null && g_hIsFaceit.IntValue == 1;
 }
 
 stock int FloatToInt(const char[] szValue, any ...)
