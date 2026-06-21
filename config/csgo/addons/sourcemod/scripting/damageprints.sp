@@ -21,9 +21,10 @@ int g_DamageDealt[MAXPLAYERS+1][MAXPLAYERS+1];
 int g_DamageTaken[MAXPLAYERS+1][MAXPLAYERS+1];
 int g_HitsDealt[MAXPLAYERS+1][MAXPLAYERS+1];
 int g_HitsTaken[MAXPLAYERS+1][MAXPLAYERS+1];
+bool g_bMatchLive = false;
+bool g_bLiveRoundActive = false;
 
 ConVar g_hIsFaceit = null;
-ConVar g_hWarmupPause = null;
 
 public void OnPluginStart()
 {
@@ -36,16 +37,25 @@ public void OnPluginStart()
         true, 1.0
     );
 
-    g_hWarmupPause = FindConVar("mp_warmup_pausetimer");
-
     HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Post);
+    HookEvent("round_start", OnRoundStart, EventHookMode_Post);
     HookEvent("round_end", OnRoundEnd, EventHookMode_Post);
+    HookEventEx("warmup_end", OnWarmupEnd, EventHookMode_Post);
+    RegServerCmd("damageprints_match_start", Command_MatchStart, "Enables damageprints for the live match.");
+    AddCommandListener(OnReadyCommand, "ready");
+    AddCommandListener(OnReadyCommand, "sm_ready");
+    AddCommandListener(OnWarmupEndCommand, "mp_warmup_end");
+    AddGameLogHook(Hook_GameLog);
 
+    g_bMatchLive = false;
+    g_bLiveRoundActive = false;
     ResetAll();
 }
 
 public void OnMapStart()
 {
+    g_bMatchLive = false;
+    g_bLiveRoundActive = false;
     ResetAll();
 }
 
@@ -54,9 +64,16 @@ bool IsFaceitMode()
     return (g_hIsFaceit != null && g_hIsFaceit.IntValue == 1);
 }
 
-bool InWarmup()
+bool ShouldTrackDamage()
 {
-    return (g_hWarmupPause != null && g_hWarmupPause.IntValue == 1);
+    return g_bMatchLive && g_bLiveRoundActive;
+}
+
+void StartMatchDamagePrints()
+{
+    g_bMatchLive = true;
+    g_bLiveRoundActive = false;
+    ResetAll();
 }
 
 // Centralized chat print that switches prefix + color based on isFaceit
@@ -77,7 +94,7 @@ void PrintModeToAll(const char[] fmt, any ...)
 
 public Action OnPlayerHurt(Event event, const char[] name, bool dontBroadcast)
 {
-    if (InWarmup())
+    if (!ShouldTrackDamage())
         return Plugin_Continue;
 
     int victim = GetClientOfUserId(event.GetInt("userid"));
@@ -96,12 +113,68 @@ public Action OnPlayerHurt(Event event, const char[] name, bool dontBroadcast)
     return Plugin_Continue;
 }
 
+public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
+{
+    if (StrEqual(sArgs, "!ready", false) || StrEqual(sArgs, "/ready", false))
+        StartMatchDamagePrints();
+
+    return Plugin_Continue;
+}
+
+public Action OnReadyCommand(int client, const char[] command, int argc)
+{
+    StartMatchDamagePrints();
+    return Plugin_Continue;
+}
+
+public Action OnWarmupEndCommand(int client, const char[] command, int argc)
+{
+    StartMatchDamagePrints();
+    return Plugin_Continue;
+}
+
+public Action Command_MatchStart(int args)
+{
+    StartMatchDamagePrints();
+    return Plugin_Continue;
+}
+
+public Action Hook_GameLog(char[] message)
+{
+    if (StrContains(message, "World triggered \"Match_Start\"") != -1)
+        StartMatchDamagePrints();
+
+    return Plugin_Continue;
+}
+
+public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+    if (g_bMatchLive)
+        g_bLiveRoundActive = true;
+
+    ResetAll();
+    return Plugin_Continue;
+}
+
 public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
-    if (!InWarmup())
+    if (!g_bLiveRoundActive)
+    {
+        ResetAll();
+        return Plugin_Continue;
+    }
+
+    if (ShouldTrackDamage())
         ShowRoundSummary();
 
     ResetAll();
+    g_bLiveRoundActive = false;
+    return Plugin_Continue;
+}
+
+public Action OnWarmupEnd(Event event, const char[] name, bool dontBroadcast)
+{
+    StartMatchDamagePrints();
     return Plugin_Continue;
 }
 
