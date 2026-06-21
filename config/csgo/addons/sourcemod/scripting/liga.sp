@@ -2,8 +2,10 @@
  * A match plugin.
  */
 #include <sourcemod>
+#include <sdkhooks>
 #include <sdktools>
 #include <cstrike>
+#include "include/eItems"
 
 // set compiler options
 #pragma       semicolon                             1;
@@ -27,9 +29,16 @@ const int     TEAM_CT                               = 1;
 const int     JOIN_TEAM_AUTO                        = 0;
 const int     OBS_MODE_IN_EYE                       = 4;
 const float   DELAY_REEXEC_LIGABOTS                 = 0.2;
+const float   DELAY_WARMUP_EQUIP                    = 0.1;
+const float   DELAY_WARMUP_RESPAWN                  = 1.0;
+const int     HEALTH_WARMUP_KILL_REWARD             = 15;
+const float   INTERVAL_WARMUP_RESTORE               = 0.25;
 const float   MAX_BOT_BOMB_USE_DISTANCE             = 175.0;
 const float   MIN_BOT_BOMB_USE_DOT                  = 0.65;
 const int     REQUIRED_MAX_ROUNDS                   = 24;
+const int     WARMUP_CVAR_COUNT                     = 19;
+char          SOUND_WARMUP_KILL[]                   = "training/timer_bell.wav";
+char          SOUND_WARMUP_HEADSHOT_KILL[]          = "training/bell_impact.wav";
 bool          reexecLigaBotsPending                 = false;
 
 // cvars
@@ -46,14 +55,84 @@ ConVar cvars[Cvars];
 bool          live, halfTime, overTime              = false;
 bool          welcomed                              = false;
 bool          isMatchPaused                         = false;
+bool          warmupDeathmatchActive                = false;
+bool          warmupDeathmatchEnding                = false;
+bool          warmupCvarsSaved                      = false;
+bool          warmupRestorePollActive               = false;
+bool          warmupSavedCvarExists[WARMUP_CVAR_COUNT];
 bool          awpRestricted[MAXPLAYERS + 1];
 bool          ecoAwpAllowed[MAXPLAYERS + 1];
+bool          eItemsAvailable                       = false;
 char          buffer[BUFFER_SIZE_MAX + 1]           = "";
 char          hostname[BUFFER_SIZE_SM + 1]          = "";
 char          initialHumanTeam[BUFFER_SIZE_SM + 1]  = "";
+char          warmupSavedCvars[WARMUP_CVAR_COUNT][BUFFER_SIZE_SM + 1];
 float         lastAwpWarn[MAXPLAYERS + 1];
 char          modelsTs[][]                          = {"models/player/t_guerilla.mdl", "models/player/t_leet.mdl", "models/player/t_phoenix.mdl"};
 char          modelsCTs[][]                         = {"models/player/ct_gign.mdl", "models/player/ct_gsg9.mdl", "models/player/ct_sas.mdl"};
+char          warmupCvarNames[][]                   = {
+  "mp_randomspawn",
+  "mp_randomspawn_los",
+  "mp_teammates_are_enemies",
+  "mp_friendlyfire",
+  "mp_respawn_on_death_t",
+  "mp_respawn_on_death_ct",
+  "mp_buytime",
+  "mp_buy_anywhere",
+  "mp_startmoney",
+  "mp_maxmoney",
+  "mp_playercashawards",
+  "mp_teamcashawards",
+  "mp_free_armor",
+  "mp_death_drop_gun",
+  "mp_death_drop_defuser",
+  "mp_death_drop_grenade",
+  "mp_death_drop_c4",
+  "mp_weapons_allow_map_placed",
+  "mp_respawn_immunitytime"
+};
+char          warmupCvarValues[][]                  = {
+  "1",
+  "1",
+  "1",
+  "1",
+  "1",
+  "1",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "2",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "0"
+};
+char          postWarmupCvarValues[][]              = {
+  "0",
+  "0",
+  "0",
+  "1",
+  "0",
+  "0",
+  "20",
+  "0",
+  "800",
+  "16000",
+  "1",
+  "1",
+  "0",
+  "1",
+  "1",
+  "2",
+  "1",
+  "1",
+  "-1"
+};
 int           reasonWinCTs[]                        = {4, 5, 6, 7, 10, 11, 13, 16, 19};
 int           reasonWinTs[]                         = {0, 3, 8, 12, 17, 18};
 int           rounds                                = 0;
@@ -70,6 +149,12 @@ public Plugin myinfo = {
   description = "Match Flow Plugin",
   version     = "1.0.5",
   url         = "http://steamcommunity.com/id/rxpev"
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+  MarkNativeAsOptional("eItems_RefillClipAmmo");
+  MarkNativeAsOptional("eItems_GetWeaponClipAmmoByWeapon");
+  return APLRes_Success;
 }
 
 /**
@@ -97,6 +182,8 @@ public void OnPluginStart() {
   gameEngine = GetEngineVersion();
 
   HookEvent("player_team", Event_JoinTeam);
+  HookEvent("player_spawn", Event_CSGO_PlayerSpawn);
+  HookEvent("player_death", Event_CSGO_PlayerDeath);
   AddCommandListener(Command_JoinTeam, "jointeam");
   AddCommandListener(Command_Spectate, "spectate");
   RegConsoleCmd("ready", Command_ReadyUp, "Starts the match.");
@@ -109,10 +196,57 @@ public void OnPluginStart() {
     cvars[MAX_ROUNDS].AddChangeHook(OnMaxRoundsChanged);
   }
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
+  HookEventEx("warmup_end", Event_CSGO_WarmupEnd, EventHookMode_Pre);
+  HookEventEx("round_prestart", Event_CSGO_RoundPreStart, EventHookMode_Pre);
   HookEvent("round_start", Event_CSGO_RoundStart);
   HookEvent("round_freeze_end", Event_CSGO_FreezeEnd);
 
   AddGameLogHook(Hook_Log);
+}
+
+public void OnAllPluginsLoaded() {
+  eItemsAvailable = LibraryExists("eItems");
+}
+
+public void OnLibraryAdded(const char[] name) {
+  if(StrEqual(name, "eItems", false)) {
+    eItemsAvailable = true;
+  }
+}
+
+public void OnLibraryRemoved(const char[] name) {
+  if(StrEqual(name, "eItems", false)) {
+    eItemsAvailable = false;
+  }
+}
+
+public void OnMapStart() {
+  warmupDeathmatchActive = false;
+  warmupDeathmatchEnding = false;
+  warmupCvarsSaved = false;
+  warmupRestorePollActive = false;
+  PrecacheSound(SOUND_WARMUP_KILL, true);
+  PrecacheSound(SOUND_WARMUP_HEADSHOT_KILL, true);
+}
+
+public void OnEntityCreated(int entity, const char[] classname) {
+  if(StrEqual(classname, "logic_script", false) || StrEqual(classname, "trigger_multiple", false)) {
+    SDKHook(entity, SDKHook_Spawn, SDK_OnWarmupEntitySpawn);
+  }
+}
+
+public void SDK_OnWarmupEntitySpawn(int entity) {
+  if(!HasEntProp(entity, Prop_Data, "m_iszVScripts")) {
+    return;
+  }
+
+  char vScripts[BUFFER_SIZE_MAX + 1];
+  GetEntPropString(entity, Prop_Data, "m_iszVScripts", vScripts, sizeof(vScripts));
+
+  if(StrEqual(vScripts, "warmup/warmup_arena.nut", false) || StrEqual(vScripts, "warmup/warmup_teleport.nut", false)) {
+    DispatchKeyValue(entity, "vscripts", "");
+    DispatchKeyValue(entity, "targetname", "");
+  }
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
@@ -140,6 +274,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 public void OnConfigsExecuted() {
   EnforceMaxRounds();
+  UpdateWarmupDeathmatch();
 
   if(!StrEqual(initialHumanTeam, "")) {
     return;
@@ -166,7 +301,9 @@ public void OnConfigsExecuted() {
  */
 public Action Command_ReadyUp(int id, int args) {
   if(gameEngine == Engine_CSGO) {
+    PrepareWarmupDeathmatchEnd();
     ServerCommand("mp_warmup_end");
+    StartWarmupRestorePoll();
     return Plugin_Continue;
   }
 
@@ -304,6 +441,16 @@ public void Event_CSGO_GameOver(Event event, const char[] name, bool dontBroadca
   CreateTimer(float(cvars[DELAY_GAME_OVER].IntValue), Timer_GameOver);
 }
 
+public void Event_CSGO_WarmupEnd(Event event, const char[] name, bool dontBroadcast) {
+  PrepareWarmupDeathmatchEnd();
+}
+
+public void Event_CSGO_RoundPreStart(Event event, const char[] name, bool dontBroadcast) {
+  if(gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") != 1) {
+    PrepareWarmupDeathmatchEnd();
+  }
+}
+
 /**
  * Handles the round start event.
  *
@@ -316,7 +463,10 @@ public void Event_CSGO_RoundStart(Event event, const char[] name, bool dontBroad
     ecoAwpAllowed[client] = false;
   }
 
-  if(GameRules_GetProp("m_bWarmupPeriod") != 1) {
+  bool isWarmup = GameRules_GetProp("m_bWarmupPeriod") == 1;
+  UpdateWarmupDeathmatch();
+
+  if(!isWarmup) {
     rounds++;
   }
 }
@@ -325,6 +475,38 @@ public void Event_CSGO_FreezeEnd(Event event, const char[] name, bool dontBroadc
   for(int client = 1; client <= MaxClients; client++) {
     ecoAwpAllowed[client] = IsEcoAwpExempt(client);
   }
+}
+
+public void Event_CSGO_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
+  if(!ShouldRunWarmupDeathmatch()) {
+    return;
+  }
+
+  int client = GetClientOfUserId(GetEventInt(event, "userid"));
+  if(!IsWarmupPlayer(client)) {
+    return;
+  }
+
+  CreateTimer(DELAY_WARMUP_EQUIP, Timer_EquipWarmupPlayer, GetClientUserId(client));
+}
+
+public void Event_CSGO_PlayerDeath(Event event, const char[] name, bool dontBroadcast) {
+  if(!ShouldRunWarmupDeathmatch()) {
+    return;
+  }
+
+  int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+  bool headshot = GetEventBool(event, "headshot");
+  GiveWarmupKillReward(attacker);
+  RefillWarmupKillerMagazine(attacker);
+  PlayWarmupKillDing(attacker, headshot);
+
+  int client = GetClientOfUserId(GetEventInt(event, "userid"));
+  if(!IsWarmupPlayer(client)) {
+    return;
+  }
+
+  CreateTimer(DELAY_WARMUP_RESPAWN, Timer_RespawnWarmupPlayer, GetClientUserId(client));
 }
 
 /**
@@ -463,6 +645,312 @@ public Action Timer_ReExecLigaBots(Handle timer)
   return Plugin_Stop;
 }
 
+public Action Timer_CheckWarmupEnded(Handle timer) {
+  if(ShouldRunWarmupDeathmatch()) {
+    return Plugin_Continue;
+  }
+
+  warmupRestorePollActive = false;
+  StopWarmupDeathmatch();
+  return Plugin_Stop;
+}
+
+public Action Timer_EquipWarmupPlayer(Handle timer, int userid) {
+  int client = GetClientOfUserId(userid);
+  if(!ShouldRunWarmupDeathmatch() || !IsWarmupPlayer(client) || !IsPlayerAlive(client)) {
+    return Plugin_Stop;
+  }
+
+  EquipWarmupPlayer(client);
+  return Plugin_Stop;
+}
+
+public Action Timer_RespawnWarmupPlayer(Handle timer, int userid) {
+  int client = GetClientOfUserId(userid);
+  if(!ShouldRunWarmupDeathmatch() || !IsWarmupPlayer(client) || IsPlayerAlive(client)) {
+    return Plugin_Stop;
+  }
+
+  CS_RespawnPlayer(client);
+  return Plugin_Stop;
+}
+
+void UpdateWarmupDeathmatch() {
+  if(ShouldRunWarmupDeathmatch()) {
+    StartWarmupDeathmatch();
+    return;
+  }
+
+  StopWarmupDeathmatch();
+}
+
+void PrepareWarmupDeathmatchEnd() {
+  if(!warmupDeathmatchActive && !warmupCvarsSaved) {
+    return;
+  }
+
+  warmupDeathmatchEnding = true;
+  ApplyPostWarmupCvars();
+}
+
+void StartWarmupRestorePoll() {
+  if(warmupRestorePollActive) {
+    return;
+  }
+
+  warmupRestorePollActive = true;
+  CreateTimer(INTERVAL_WARMUP_RESTORE, Timer_CheckWarmupEnded, _, TIMER_REPEAT);
+}
+
+bool ShouldRunWarmupDeathmatch() {
+  return (
+    gameEngine == Engine_CSGO &&
+    !warmupDeathmatchEnding &&
+    GameRules_GetProp("m_bWarmupPeriod") == 1
+  );
+}
+
+void StartWarmupDeathmatch() {
+  bool justStarted = !warmupDeathmatchActive;
+  if(justStarted) {
+    SaveWarmupCvars();
+    warmupDeathmatchActive = true;
+  }
+
+  ApplyWarmupCvars();
+
+  if(justStarted) {
+    for(int client = 1; client <= MaxClients; client++) {
+      if(IsWarmupPlayer(client) && IsPlayerAlive(client)) {
+        CreateTimer(DELAY_WARMUP_EQUIP, Timer_EquipWarmupPlayer, GetClientUserId(client));
+      }
+    }
+  }
+}
+
+void StopWarmupDeathmatch() {
+  if(!warmupDeathmatchActive && !warmupCvarsSaved && !warmupDeathmatchEnding) {
+    return;
+  }
+
+  RestoreWarmupCvars();
+  ApplyPostWarmupCvars();
+  warmupDeathmatchActive = false;
+  warmupDeathmatchEnding = false;
+  EnforceMaxRounds();
+}
+
+void SaveWarmupCvars() {
+  if(warmupCvarsSaved) {
+    return;
+  }
+
+  for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
+    ConVar convar = FindConVar(warmupCvarNames[i]);
+    warmupSavedCvarExists[i] = convar != null;
+
+    if(warmupSavedCvarExists[i]) {
+      convar.GetString(warmupSavedCvars[i], sizeof(warmupSavedCvars[]));
+    } else {
+      warmupSavedCvars[i][0] = '\0';
+    }
+  }
+
+  warmupCvarsSaved = true;
+}
+
+void ApplyWarmupCvars() {
+  for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
+    ConVar convar = FindConVar(warmupCvarNames[i]);
+    if(convar != null) {
+      convar.SetString(warmupCvarValues[i]);
+    }
+  }
+}
+
+void RestoreWarmupCvars() {
+  if(!warmupCvarsSaved) {
+    return;
+  }
+
+  for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
+    if(!warmupSavedCvarExists[i]) {
+      continue;
+    }
+
+    ConVar convar = FindConVar(warmupCvarNames[i]);
+    if(convar != null) {
+      convar.SetString(warmupSavedCvars[i]);
+    }
+
+    warmupSavedCvarExists[i] = false;
+    warmupSavedCvars[i][0] = '\0';
+  }
+
+  warmupCvarsSaved = false;
+}
+
+void ApplyPostWarmupCvars() {
+  for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
+    ConVar convar = FindConVar(warmupCvarNames[i]);
+    if(convar != null) {
+      convar.SetString(postWarmupCvarValues[i]);
+    }
+  }
+}
+
+void GiveWarmupKillReward(int client) {
+  if(!IsWarmupPlayer(client) || !IsPlayerAlive(client)) {
+    return;
+  }
+
+  int health = GetClientHealth(client);
+  int rewardedHealth = health + HEALTH_WARMUP_KILL_REWARD;
+  if(rewardedHealth > 100) {
+    rewardedHealth = 100;
+  }
+
+  SetEntityHealth(client, rewardedHealth);
+}
+
+void RefillWarmupKillerMagazine(int client) {
+  if(!IsWarmupPlayer(client) || !IsPlayerAlive(client)) {
+    return;
+  }
+
+  int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+  if(weapon <= 0 || !IsValidEntity(weapon)) {
+    return;
+  }
+
+  int clip = GetWarmupWeaponClipCapacity(weapon);
+  if(clip <= 0) {
+    return;
+  }
+
+  SetWeaponClip(weapon, clip);
+}
+
+void PlayWarmupKillDing(int client, bool headshot) {
+  if(!IsWarmupPlayer(client)) {
+    return;
+  }
+
+  EmitSoundToClient(client, headshot ? SOUND_WARMUP_HEADSHOT_KILL : SOUND_WARMUP_KILL);
+}
+
+int GetWarmupWeaponClipCapacity(int weapon) {
+  if(weapon <= 0 || !IsValidEntity(weapon)) {
+    return 0;
+  }
+
+  if(eItemsAvailable) {
+    int clip = eItems_GetWeaponClipAmmoByWeapon(weapon);
+    if(clip > 0) {
+      return clip;
+    }
+  }
+
+  char classname[BUFFER_SIZE_SM + 1];
+  if(!GetEntityClassname(weapon, classname, sizeof(classname))) {
+    return 0;
+  }
+
+  return GetDefaultWarmupWeaponClipCapacity(classname);
+}
+
+int GetDefaultWarmupWeaponClipCapacity(const char[] classname) {
+  if(StrEqual(classname, "weapon_ak47", false) || StrEqual(classname, "weapon_m4a1", false)) {
+    return 30;
+  }
+
+  if(StrEqual(classname, "weapon_m4a1_silencer", false)) {
+    return 20;
+  }
+
+  if(StrEqual(classname, "weapon_awp", false)) {
+    return 10;
+  }
+
+  if(StrEqual(classname, "weapon_deagle", false)) {
+    return 7;
+  }
+
+  return 0;
+}
+
+void SetWeaponClip(int weapon, int clip) {
+  if(HasEntProp(weapon, Prop_Data, "m_iClip1")) {
+    SetEntProp(weapon, Prop_Data, "m_iClip1", clip);
+  }
+
+  if(HasEntProp(weapon, Prop_Send, "m_iClip1")) {
+    SetEntProp(weapon, Prop_Send, "m_iClip1", clip);
+  }
+}
+
+bool IsWarmupPlayer(int client) {
+  return (
+    client > 0 &&
+    client <= MaxClients &&
+    IsClientInGame(client) &&
+    GetClientTeam(client) > CS_TEAM_SPECTATOR
+  );
+}
+
+void EquipWarmupPlayer(int client) {
+  StripWeaponSlot(client, CS_SLOT_PRIMARY);
+  StripWeaponSlot(client, CS_SLOT_SECONDARY);
+  StripWeaponSlot(client, CS_SLOT_GRENADE);
+  StripWeaponSlot(client, CS_SLOT_C4);
+
+  char weapon[BUFFER_SIZE_SM + 1];
+  GetWarmupWeapon(weapon, sizeof(weapon));
+  GivePlayerItem(client, weapon);
+  SetEntProp(client, Prop_Send, "m_ArmorValue", 100);
+  SetEntProp(client, Prop_Send, "m_bHasHelmet", 1);
+  SetEntProp(client, Prop_Send, "m_iAccount", 0);
+}
+
+void GetWarmupWeapon(char[] weapon, int size) {
+  int roll = GetRandomInt(1, 100);
+
+  if(roll <= 60) {
+    strcopy(weapon, size, "weapon_ak47");
+    return;
+  }
+
+  if(roll <= 75) {
+    strcopy(weapon, size, "weapon_m4a1_silencer");
+    return;
+  }
+
+  if(roll <= 85) {
+    strcopy(weapon, size, "weapon_m4a1");
+    return;
+  }
+
+  if(roll <= 95) {
+    strcopy(weapon, size, "weapon_awp");
+    return;
+  }
+
+  strcopy(weapon, size, "weapon_deagle");
+}
+
+void StripWeaponSlot(int client, int slot) {
+  int safety = 0;
+  int weapon = GetPlayerWeaponSlot(client, slot);
+
+  while(weapon != -1 && IsValidEntity(weapon) && safety < 16) {
+    RemovePlayerItem(client, weapon);
+    AcceptEntityInput(weapon, "Kill");
+
+    safety++;
+    weapon = GetPlayerWeaponSlot(client, slot);
+  }
+}
+
 /**
  * Handles the half-time event by executing the
  * appropriate half-time or overtime config.
@@ -513,7 +1001,7 @@ public Action Timer_WelcomeMessage(Handle timer, int id) {
     say("YOU ARE SPECTATING THIS MATCH.");
   }
 
-  say("\x0ETO START THE MATCH TYPE: !ready");
+  PrintToChatAll("\x01 \x09<%s> \x02TO START THE MATCH TYPE: !ready", hostname);
 
   return Plugin_Continue;
 }
