@@ -25,6 +25,7 @@ bool g_bMatchLive = false;
 bool g_bLiveRoundActive = false;
 
 ConVar g_hIsFaceit = null;
+ConVar g_hIsDeathmatch = null;
 
 public void OnPluginStart()
 {
@@ -36,6 +37,7 @@ public void OnPluginStart()
         true, 0.0,
         true, 1.0
     );
+    g_hIsDeathmatch = FindConVar("isDeathmatch");
 
     HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Post);
     HookEvent("round_start", OnRoundStart, EventHookMode_Post);
@@ -64,13 +66,29 @@ bool IsFaceitMode()
     return (g_hIsFaceit != null && g_hIsFaceit.IntValue == 1);
 }
 
+bool IsStandaloneDeathmatchMode()
+{
+    if (g_hIsDeathmatch == null)
+        g_hIsDeathmatch = FindConVar("isDeathmatch");
+
+    return (g_hIsDeathmatch != null && g_hIsDeathmatch.IntValue == 1);
+}
+
 bool ShouldTrackDamage()
 {
-    return g_bMatchLive && g_bLiveRoundActive;
+    return !IsStandaloneDeathmatchMode() && g_bMatchLive && g_bLiveRoundActive;
 }
 
 void StartMatchDamagePrints()
 {
+    if (IsStandaloneDeathmatchMode())
+    {
+        g_bMatchLive = false;
+        g_bLiveRoundActive = false;
+        ResetAll();
+        return;
+    }
+
     g_bMatchLive = true;
     g_bLiveRoundActive = false;
     ResetAll();
@@ -79,6 +97,9 @@ void StartMatchDamagePrints()
 // Centralized chat print that switches prefix + color based on isFaceit
 void PrintModeToAll(const char[] fmt, any ...)
 {
+    if (IsStandaloneDeathmatchMode())
+        return;
+
     char msg[512];
     VFormat(msg, sizeof(msg), fmt, 2);
 
@@ -149,6 +170,14 @@ public Action Hook_GameLog(char[] message)
 
 public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 {
+    if (IsStandaloneDeathmatchMode())
+    {
+        g_bMatchLive = false;
+        g_bLiveRoundActive = false;
+        ResetAll();
+        return Plugin_Continue;
+    }
+
     if (g_bMatchLive)
         g_bLiveRoundActive = true;
 
@@ -158,6 +187,14 @@ public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 
 public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
+    if (IsStandaloneDeathmatchMode())
+    {
+        g_bMatchLive = false;
+        g_bLiveRoundActive = false;
+        ResetAll();
+        return Plugin_Continue;
+    }
+
     if (!g_bLiveRoundActive)
     {
         ResetAll();
