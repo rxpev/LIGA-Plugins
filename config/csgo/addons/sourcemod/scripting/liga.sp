@@ -1242,6 +1242,26 @@ void GetWarmupWeapon(char[] weapon, int size) {
 
   int roll = GetRandomInt(1, 100);
 
+  if(IsDeathmatchMode() && cvars[DEATHMATCH_HEADSHOT_ONLY].BoolValue) {
+    if(roll <= 70) {
+      strcopy(weapon, size, "weapon_ak47");
+      return;
+    }
+
+    if(roll <= 85) {
+      strcopy(weapon, size, "weapon_m4a1_silencer");
+      return;
+    }
+
+    if(roll <= 95) {
+      strcopy(weapon, size, "weapon_m4a1");
+      return;
+    }
+
+    strcopy(weapon, size, "weapon_deagle");
+    return;
+  }
+
   if(roll <= 60) {
     strcopy(weapon, size, "weapon_ak47");
     return;
@@ -1455,7 +1475,7 @@ Action RestrictAwpUsage(int client, int &buttons) {
   }
 
   float now = GetGameTime();
-  if(GameRules_GetProp("m_bWarmupPeriod") == 1 || cvars[IS_AWP].BoolValue || ecoAwpAllowed[client] || !HasAliveTeammate(client, team)) {
+  if(IsDeathmatchMode() || GameRules_GetProp("m_bWarmupPeriod") == 1 || cvars[IS_AWP].BoolValue || ecoAwpAllowed[client] || !HasAliveTeammate(client, team)) {
     if(awpRestricted[client]) {
       awpRestricted[client] = false;
       SetEntPropFloat(activeWeapon, Prop_Send, "m_flNextPrimaryAttack", now);
