@@ -36,7 +36,7 @@ const float   INTERVAL_WARMUP_RESTORE               = 0.25;
 const float   MAX_BOT_BOMB_USE_DISTANCE             = 175.0;
 const float   MIN_BOT_BOMB_USE_DOT                  = 0.65;
 const int     REQUIRED_MAX_ROUNDS                   = 24;
-const int     WARMUP_CVAR_COUNT                     = 19;
+const int     WARMUP_CVAR_COUNT                     = 29;
 char          SOUND_WARMUP_KILL[]                   = "training/timer_bell.wav";
 char          SOUND_WARMUP_HEADSHOT_KILL[]          = "training/bell_impact.wav";
 bool          reexecLigaBotsPending                 = false;
@@ -44,6 +44,11 @@ bool          reexecLigaBotsPending                 = false;
 // cvars
 enum Cvars {
   DELAY_GAME_OVER,
+  IS_DEATHMATCH,
+  DEATHMATCH_GAME_TIME,
+  DEATHMATCH_HEADSHOT_ONLY,
+  DEATHMATCH_PISTOLS_ONLY,
+  DEATHMATCH_FORCE_BUY,
   IS_AWP,
   IS_IGL,
   MAX_ROUNDS,
@@ -55,6 +60,8 @@ ConVar cvars[Cvars];
 bool          live, halfTime, overTime              = false;
 bool          welcomed                              = false;
 bool          isMatchPaused                         = false;
+bool          standaloneDeathmatchActive            = false;
+bool          deathmatchWarmupEndPollActive         = false;
 bool          warmupDeathmatchActive                = false;
 bool          warmupDeathmatchEnding                = false;
 bool          warmupCvarsSaved                      = false;
@@ -89,7 +96,17 @@ char          warmupCvarNames[][]                   = {
   "mp_death_drop_grenade",
   "mp_death_drop_c4",
   "mp_weapons_allow_map_placed",
-  "mp_respawn_immunitytime"
+  "mp_respawn_immunitytime",
+  "mp_timelimit",
+  "mp_roundtime",
+  "mp_roundtime_hostage",
+  "mp_roundtime_defuse",
+  "mp_damage_headshot_only",
+  "mp_maxrounds",
+  "spec_freeze_time",
+  "spec_freeze_time_lock",
+  "spec_freeze_deathanim_time",
+  "spec_freeze_panel_extended_time"
 };
 char          warmupCvarValues[][]                  = {
   "1",
@@ -108,6 +125,16 @@ char          warmupCvarValues[][]                  = {
   "0",
   "0",
   "0",
+  "0",
+  "0",
+  "0",
+  "0",
+  "1.92",
+  "1.92",
+  "1.92",
+  "0",
+  "24",
+  "2.0",
   "0",
   "0",
   "0"
@@ -131,7 +158,17 @@ char          postWarmupCvarValues[][]              = {
   "2",
   "1",
   "1",
-  "-1"
+  "-1",
+  "0",
+  "1.92",
+  "1.92",
+  "1.92",
+  "0",
+  "24",
+  "2.0",
+  "0",
+  "0",
+  "0"
 };
 int           reasonWinCTs[]                        = {4, 5, 6, 7, 10, 11, 13, 16, 19};
 int           reasonWinTs[]                         = {0, 3, 8, 12, 17, 18};
@@ -162,6 +199,51 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
  */
 public void OnPluginStart() {
   cvars[DELAY_GAME_OVER] = CreateConVar("liga_gameover_delay", "10");
+  cvars[IS_DEATHMATCH] = CreateConVar(
+    "isDeathmatch",
+    "0",
+    "0 = normal match flow; 1 = standalone LIGA deathmatch mode.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
+  cvars[DEATHMATCH_GAME_TIME] = CreateConVar(
+    "deathmatch_game_time",
+    "10",
+    "Standalone deathmatch duration in minutes. Supported values: 10, 20, 30, 45, 60.",
+    FCVAR_NOTIFY,
+    true, 10.0,
+    true, 60.0
+  );
+  cvars[DEATHMATCH_HEADSHOT_ONLY] = CreateConVar(
+    "deathmatch_headshot_only",
+    "0",
+    "0 = normal damage; 1 = headshot-only damage in standalone deathmatch.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
+  cvars[DEATHMATCH_PISTOLS_ONLY] = CreateConVar(
+    "deathmatch_pistols_only",
+    "0",
+    "0 = normal deathmatch weapons; 1 = Kevlar-only pistol pool.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
+  cvars[DEATHMATCH_FORCE_BUY] = CreateConVar(
+    "deathmatch_force_buy",
+    "0",
+    "0 = normal deathmatch weapons; 1 = full-armor force-buy weapon pool.",
+    FCVAR_NOTIFY,
+    true, 0.0,
+    true, 1.0
+  );
+  cvars[IS_DEATHMATCH].AddChangeHook(OnDeathmatchCvarChanged);
+  cvars[DEATHMATCH_GAME_TIME].AddChangeHook(OnDeathmatchCvarChanged);
+  cvars[DEATHMATCH_HEADSHOT_ONLY].AddChangeHook(OnDeathmatchCvarChanged);
+  cvars[DEATHMATCH_PISTOLS_ONLY].AddChangeHook(OnDeathmatchCvarChanged);
+  cvars[DEATHMATCH_FORCE_BUY].AddChangeHook(OnDeathmatchCvarChanged);
   cvars[IS_AWP]          = CreateConVar(
     "isAWP",
     "0",
@@ -183,6 +265,7 @@ public void OnPluginStart() {
 
   HookEvent("player_team", Event_JoinTeam);
   HookEvent("player_spawn", Event_CSGO_PlayerSpawn);
+  HookEvent("player_hurt", Event_CSGO_PlayerHurt);
   HookEvent("player_death", Event_CSGO_PlayerDeath);
   AddCommandListener(Command_JoinTeam, "jointeam");
   AddCommandListener(Command_Spectate, "spectate");
@@ -192,7 +275,7 @@ public void OnPluginStart() {
 
   cvars[MAX_ROUNDS] = FindConVar("mp_maxrounds");
   if(cvars[MAX_ROUNDS] != null) {
-    cvars[MAX_ROUNDS].SetInt(REQUIRED_MAX_ROUNDS);
+    cvars[MAX_ROUNDS].SetInt(GetRequiredMaxRounds());
     cvars[MAX_ROUNDS].AddChangeHook(OnMaxRoundsChanged);
   }
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
@@ -221,6 +304,8 @@ public void OnLibraryRemoved(const char[] name) {
 }
 
 public void OnMapStart() {
+  standaloneDeathmatchActive = false;
+  deathmatchWarmupEndPollActive = false;
   warmupDeathmatchActive = false;
   warmupDeathmatchEnding = false;
   warmupCvarsSaved = false;
@@ -274,7 +359,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 public void OnConfigsExecuted() {
   EnforceMaxRounds();
-  UpdateWarmupDeathmatch();
+  UpdateDeathmatchMode();
+
+  if(IsDeathmatchMode()) {
+    return;
+  }
 
   if(!StrEqual(initialHumanTeam, "")) {
     return;
@@ -293,6 +382,18 @@ public void OnConfigsExecuted() {
   }
 }
 
+public void OnDeathmatchCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+  if(gameEngine != Engine_CSGO) {
+    return;
+  }
+
+  UpdateDeathmatchMode();
+
+  if(IsDeathmatchMode()) {
+    EquipActiveDeathmatchPlayers();
+  }
+}
+
 /**
  * Ready up command handler.
  *
@@ -301,6 +402,10 @@ public void OnConfigsExecuted() {
  */
 public Action Command_ReadyUp(int id, int args) {
   if(gameEngine == Engine_CSGO) {
+    if(IsDeathmatchMode()) {
+      return Plugin_Handled;
+    }
+
     PrepareWarmupDeathmatchEnd();
     ServerCommand("mp_warmup_end");
     StartWarmupRestorePoll();
@@ -442,10 +547,20 @@ public void Event_CSGO_GameOver(Event event, const char[] name, bool dontBroadca
 }
 
 public void Event_CSGO_WarmupEnd(Event event, const char[] name, bool dontBroadcast) {
+  if(IsDeathmatchMode()) {
+    ApplyDeathmatchCvars();
+    return;
+  }
+
   PrepareWarmupDeathmatchEnd();
 }
 
 public void Event_CSGO_RoundPreStart(Event event, const char[] name, bool dontBroadcast) {
+  if(IsDeathmatchMode()) {
+    ApplyDeathmatchCvars();
+    return;
+  }
+
   if(gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") != 1) {
     PrepareWarmupDeathmatchEnd();
   }
@@ -464,9 +579,13 @@ public void Event_CSGO_RoundStart(Event event, const char[] name, bool dontBroad
   }
 
   bool isWarmup = GameRules_GetProp("m_bWarmupPeriod") == 1;
-  UpdateWarmupDeathmatch();
+  UpdateDeathmatchMode();
 
-  if(!isWarmup) {
+  if(IsDeathmatchMode()) {
+    ApplyDeathmatchCvars();
+  }
+
+  if(!isWarmup && !IsDeathmatchMode()) {
     rounds++;
   }
 }
@@ -478,7 +597,7 @@ public void Event_CSGO_FreezeEnd(Event event, const char[] name, bool dontBroadc
 }
 
 public void Event_CSGO_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
-  if(!ShouldRunWarmupDeathmatch()) {
+  if(!ShouldRunDeathmatchRules()) {
     return;
   }
 
@@ -490,8 +609,26 @@ public void Event_CSGO_PlayerSpawn(Event event, const char[] name, bool dontBroa
   CreateTimer(DELAY_WARMUP_EQUIP, Timer_EquipWarmupPlayer, GetClientUserId(client));
 }
 
+public void Event_CSGO_PlayerHurt(Event event, const char[] name, bool dontBroadcast) {
+  if(!ShouldRunDeathmatchRules()) {
+    return;
+  }
+
+  int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+  int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+  if(attacker == victim || !IsWarmupPlayer(attacker) || !IsWarmupPlayer(victim)) {
+    return;
+  }
+
+  if(GetEventInt(event, "health") <= 0) {
+    return;
+  }
+
+  PlayWarmupHitDing(attacker);
+}
+
 public void Event_CSGO_PlayerDeath(Event event, const char[] name, bool dontBroadcast) {
-  if(!ShouldRunWarmupDeathmatch()) {
+  if(!ShouldRunDeathmatchRules()) {
     return;
   }
 
@@ -655,9 +792,37 @@ public Action Timer_CheckWarmupEnded(Handle timer) {
   return Plugin_Stop;
 }
 
+public Action Timer_EndDeathmatchWarmup(Handle timer) {
+  if(!IsDeathmatchMode() || !standaloneDeathmatchActive) {
+    deathmatchWarmupEndPollActive = false;
+    return Plugin_Stop;
+  }
+
+  ApplyDeathmatchCvars();
+
+  if(GameRules_GetProp("m_bWarmupPeriod") != 1) {
+    deathmatchWarmupEndPollActive = false;
+    return Plugin_Stop;
+  }
+
+  ServerCommand("mp_warmuptime 1");
+  ServerCommand("mp_warmup_pausetimer 0");
+  ServerCommand("mp_warmup_end");
+  return Plugin_Continue;
+}
+
+public Action Timer_ApplyDeathmatchCvars(Handle timer) {
+  if(IsDeathmatchMode() && standaloneDeathmatchActive) {
+    ApplyDeathmatchCvars();
+    EquipActiveDeathmatchPlayers();
+  }
+
+  return Plugin_Stop;
+}
+
 public Action Timer_EquipWarmupPlayer(Handle timer, int userid) {
   int client = GetClientOfUserId(userid);
-  if(!ShouldRunWarmupDeathmatch() || !IsWarmupPlayer(client) || !IsPlayerAlive(client)) {
+  if(!ShouldRunDeathmatchRules() || !IsWarmupPlayer(client) || !IsPlayerAlive(client)) {
     return Plugin_Stop;
   }
 
@@ -667,12 +832,22 @@ public Action Timer_EquipWarmupPlayer(Handle timer, int userid) {
 
 public Action Timer_RespawnWarmupPlayer(Handle timer, int userid) {
   int client = GetClientOfUserId(userid);
-  if(!ShouldRunWarmupDeathmatch() || !IsWarmupPlayer(client) || IsPlayerAlive(client)) {
+  if(!ShouldRunDeathmatchRules() || !IsWarmupPlayer(client) || IsPlayerAlive(client)) {
     return Plugin_Stop;
   }
 
   CS_RespawnPlayer(client);
   return Plugin_Stop;
+}
+
+void UpdateDeathmatchMode() {
+  if(IsDeathmatchMode()) {
+    StartStandaloneDeathmatch();
+    return;
+  }
+
+  StopStandaloneDeathmatch();
+  UpdateWarmupDeathmatch();
 }
 
 void UpdateWarmupDeathmatch() {
@@ -708,6 +883,69 @@ bool ShouldRunWarmupDeathmatch() {
     !warmupDeathmatchEnding &&
     GameRules_GetProp("m_bWarmupPeriod") == 1
   );
+}
+
+bool ShouldRunDeathmatchRules() {
+  return ShouldRunWarmupDeathmatch() || (gameEngine == Engine_CSGO && standaloneDeathmatchActive);
+}
+
+bool IsDeathmatchMode() {
+  return gameEngine == Engine_CSGO && cvars[IS_DEATHMATCH] != null && cvars[IS_DEATHMATCH].BoolValue;
+}
+
+void StartStandaloneDeathmatch() {
+  bool justStarted = !standaloneDeathmatchActive;
+  if(justStarted) {
+    SaveWarmupCvars();
+    standaloneDeathmatchActive = true;
+  }
+
+  ApplyDeathmatchCvars();
+
+  if(justStarted) {
+    CreateTimer(0.1, Timer_ApplyDeathmatchCvars);
+    CreateTimer(1.0, Timer_ApplyDeathmatchCvars);
+
+    if(GameRules_GetProp("m_bWarmupPeriod") == 1) {
+      StartDeathmatchWarmupEndPoll();
+    }
+
+    for(int client = 1; client <= MaxClients; client++) {
+      if(IsWarmupPlayer(client) && IsPlayerAlive(client)) {
+        CreateTimer(DELAY_WARMUP_EQUIP, Timer_EquipWarmupPlayer, GetClientUserId(client));
+      }
+    }
+  }
+}
+
+void EquipActiveDeathmatchPlayers() {
+  if(!standaloneDeathmatchActive) {
+    return;
+  }
+
+  for(int client = 1; client <= MaxClients; client++) {
+    if(IsWarmupPlayer(client) && IsPlayerAlive(client)) {
+      CreateTimer(DELAY_WARMUP_EQUIP, Timer_EquipWarmupPlayer, GetClientUserId(client));
+    }
+  }
+}
+
+void StartDeathmatchWarmupEndPoll() {
+  if(deathmatchWarmupEndPollActive) {
+    return;
+  }
+
+  deathmatchWarmupEndPollActive = true;
+  CreateTimer(INTERVAL_WARMUP_RESTORE, Timer_EndDeathmatchWarmup, _, TIMER_REPEAT);
+}
+
+void StopStandaloneDeathmatch() {
+  if(!standaloneDeathmatchActive) {
+    return;
+  }
+
+  RestoreWarmupCvars();
+  standaloneDeathmatchActive = false;
 }
 
 void StartWarmupDeathmatch() {
@@ -763,6 +1001,39 @@ void ApplyWarmupCvars() {
   for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
     ConVar convar = FindConVar(warmupCvarNames[i]);
     if(convar != null) {
+      convar.SetString(warmupCvarValues[i]);
+    }
+  }
+}
+
+void ApplyDeathmatchCvars() {
+  for(int i = 0; i < WARMUP_CVAR_COUNT; i++) {
+    ConVar convar = FindConVar(warmupCvarNames[i]);
+    if(convar == null) {
+      continue;
+    }
+
+    if(StrEqual(warmupCvarNames[i], "mp_free_armor", false)) {
+      convar.SetInt(GetDeathmatchFreeArmor());
+    } else if(StrEqual(warmupCvarNames[i], "mp_maxrounds", false)) {
+      convar.SetInt(1);
+    } else if(
+      StrEqual(warmupCvarNames[i], "spec_freeze_time", false) ||
+      StrEqual(warmupCvarNames[i], "spec_freeze_time_lock", false) ||
+      StrEqual(warmupCvarNames[i], "spec_freeze_deathanim_time", false) ||
+      StrEqual(warmupCvarNames[i], "spec_freeze_panel_extended_time", false)
+    ) {
+      convar.SetInt(0);
+    } else if(
+      StrEqual(warmupCvarNames[i], "mp_timelimit", false) ||
+      StrEqual(warmupCvarNames[i], "mp_roundtime", false) ||
+      StrEqual(warmupCvarNames[i], "mp_roundtime_hostage", false) ||
+      StrEqual(warmupCvarNames[i], "mp_roundtime_defuse", false)
+    ) {
+      convar.SetInt(GetDeathmatchGameTime());
+    } else if(StrEqual(warmupCvarNames[i], "mp_damage_headshot_only", false)) {
+      convar.SetInt(cvars[DEATHMATCH_HEADSHOT_ONLY].BoolValue ? 1 : 0);
+    } else {
       convar.SetString(warmupCvarValues[i]);
     }
   }
@@ -839,6 +1110,32 @@ void PlayWarmupKillDing(int client, bool headshot) {
   EmitSoundToClient(client, headshot ? SOUND_WARMUP_HEADSHOT_KILL : SOUND_WARMUP_KILL);
 }
 
+void PlayWarmupHitDing(int client) {
+  if(!IsWarmupPlayer(client)) {
+    return;
+  }
+
+  EmitSoundToClient(client, SOUND_WARMUP_KILL);
+}
+
+int GetDeathmatchGameTime() {
+  int minutes = cvars[DEATHMATCH_GAME_TIME].IntValue;
+
+  if(minutes == 10 || minutes == 20 || minutes == 30 || minutes == 45 || minutes == 60) {
+    return minutes;
+  }
+
+  return 10;
+}
+
+int GetDeathmatchFreeArmor() {
+  if(cvars[DEATHMATCH_PISTOLS_ONLY].BoolValue) {
+    return 1;
+  }
+
+  return 2;
+}
+
 int GetWarmupWeaponClipCapacity(int weapon) {
   if(weapon <= 0 || !IsValidEntity(weapon)) {
     return 0;
@@ -876,6 +1173,26 @@ int GetDefaultWarmupWeaponClipCapacity(const char[] classname) {
     return 7;
   }
 
+  if(StrEqual(classname, "weapon_galilar", false) || StrEqual(classname, "weapon_famas", false)) {
+    return 30;
+  }
+
+  if(StrEqual(classname, "weapon_ssg08", false)) {
+    return 10;
+  }
+
+  if(StrEqual(classname, "weapon_mp9", false) || StrEqual(classname, "weapon_mac10", false)) {
+    return 30;
+  }
+
+  if(StrEqual(classname, "weapon_usp_silencer", false) || StrEqual(classname, "weapon_glock", false)) {
+    return 20;
+  }
+
+  if(StrEqual(classname, "weapon_p250", false)) {
+    return 13;
+  }
+
   return 0;
 }
 
@@ -908,11 +1225,21 @@ void EquipWarmupPlayer(int client) {
   GetWarmupWeapon(weapon, sizeof(weapon));
   GivePlayerItem(client, weapon);
   SetEntProp(client, Prop_Send, "m_ArmorValue", 100);
-  SetEntProp(client, Prop_Send, "m_bHasHelmet", 1);
+  SetEntProp(client, Prop_Send, "m_bHasHelmet", ShouldEquipDeathmatchHelmet() ? 1 : 0);
   SetEntProp(client, Prop_Send, "m_iAccount", 0);
 }
 
 void GetWarmupWeapon(char[] weapon, int size) {
+  if(IsDeathmatchMode() && cvars[DEATHMATCH_PISTOLS_ONLY].BoolValue) {
+    GetDeathmatchPistolWeapon(weapon, size);
+    return;
+  }
+
+  if(IsDeathmatchMode() && cvars[DEATHMATCH_FORCE_BUY].BoolValue) {
+    GetDeathmatchForceBuyWeapon(weapon, size);
+    return;
+  }
+
   int roll = GetRandomInt(1, 100);
 
   if(roll <= 60) {
@@ -936,6 +1263,57 @@ void GetWarmupWeapon(char[] weapon, int size) {
   }
 
   strcopy(weapon, size, "weapon_deagle");
+}
+
+void GetDeathmatchPistolWeapon(char[] weapon, int size) {
+  int roll = GetRandomInt(1, 100);
+
+  if(roll <= 90) {
+    strcopy(weapon, size, "weapon_usp_silencer");
+    return;
+  }
+
+  if(roll <= 95) {
+    strcopy(weapon, size, "weapon_glock");
+    return;
+  }
+
+  strcopy(weapon, size, "weapon_p250");
+}
+
+void GetDeathmatchForceBuyWeapon(char[] weapon, int size) {
+  int roll = GetRandomInt(1, 100);
+
+  if(roll <= 45) {
+    strcopy(weapon, size, "weapon_galilar");
+    return;
+  }
+
+  if(roll <= 60) {
+    strcopy(weapon, size, "weapon_ssg08");
+    return;
+  }
+
+  if(roll <= 70) {
+    strcopy(weapon, size, "weapon_mp9");
+    return;
+  }
+
+  if(roll <= 80) {
+    strcopy(weapon, size, "weapon_mac10");
+    return;
+  }
+
+  if(roll <= 90) {
+    strcopy(weapon, size, "weapon_deagle");
+    return;
+  }
+
+  strcopy(weapon, size, "weapon_famas");
+}
+
+bool ShouldEquipDeathmatchHelmet() {
+  return !IsDeathmatchMode() || !cvars[DEATHMATCH_PISTOLS_ONLY].BoolValue;
 }
 
 void StripWeaponSlot(int client, int slot) {
@@ -1160,15 +1538,25 @@ bool ClientHasPrimary(int client) {
 }
 
 public void OnMaxRoundsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
-  if(convar.IntValue != REQUIRED_MAX_ROUNDS) {
-    convar.SetInt(REQUIRED_MAX_ROUNDS);
+  int requiredMaxRounds = GetRequiredMaxRounds();
+  if(convar.IntValue != requiredMaxRounds) {
+    convar.SetInt(requiredMaxRounds);
   }
 }
 
 void EnforceMaxRounds() {
-  if(cvars[MAX_ROUNDS] != null && cvars[MAX_ROUNDS].IntValue != REQUIRED_MAX_ROUNDS) {
-    cvars[MAX_ROUNDS].SetInt(REQUIRED_MAX_ROUNDS);
+  int requiredMaxRounds = GetRequiredMaxRounds();
+  if(cvars[MAX_ROUNDS] != null && cvars[MAX_ROUNDS].IntValue != requiredMaxRounds) {
+    cvars[MAX_ROUNDS].SetInt(requiredMaxRounds);
   }
+}
+
+int GetRequiredMaxRounds() {
+  if(IsDeathmatchMode()) {
+    return 1;
+  }
+
+  return REQUIRED_MAX_ROUNDS;
 }
 
 bool ClientHasBomb(int client) {
