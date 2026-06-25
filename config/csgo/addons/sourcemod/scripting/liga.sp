@@ -36,7 +36,8 @@ const float   INTERVAL_WARMUP_RESTORE               = 0.25;
 const float   MAX_BOT_BOMB_USE_DISTANCE             = 175.0;
 const float   MIN_BOT_BOMB_USE_DOT                  = 0.65;
 const int     REQUIRED_MAX_ROUNDS                   = 24;
-const int     WARMUP_CVAR_COUNT                     = 29;
+const int     WARMUP_CVAR_COUNT                     = 25;
+const int     DEATHMATCH_ONLY_CVAR_COUNT            = 4;
 char          SOUND_WARMUP_KILL[]                   = "training/timer_bell.wav";
 char          SOUND_WARMUP_HEADSHOT_KILL[]          = "training/bell_impact.wav";
 bool          reexecLigaBotsPending                 = false;
@@ -102,11 +103,7 @@ char          warmupCvarNames[][]                   = {
   "mp_roundtime_hostage",
   "mp_roundtime_defuse",
   "mp_damage_headshot_only",
-  "mp_maxrounds",
-  "spec_freeze_time",
-  "spec_freeze_time_lock",
-  "spec_freeze_deathanim_time",
-  "spec_freeze_panel_extended_time"
+  "mp_maxrounds"
 };
 char          warmupCvarValues[][]                  = {
   "1",
@@ -133,11 +130,7 @@ char          warmupCvarValues[][]                  = {
   "1.92",
   "1.92",
   "0",
-  "24",
-  "2.0",
-  "0",
-  "0",
-  "0"
+  "24"
 };
 char          postWarmupCvarValues[][]              = {
   "0",
@@ -164,8 +157,16 @@ char          postWarmupCvarValues[][]              = {
   "1.92",
   "1.92",
   "0",
-  "24",
-  "2.0",
+  "24"
+};
+char          deathmatchOnlyCvarNames[][]           = {
+  "spec_freeze_time",
+  "spec_freeze_time_lock",
+  "spec_freeze_deathanim_time",
+  "spec_freeze_panel_extended_time"
+};
+char          deathmatchOnlyCvarValues[][]          = {
+  "0",
   "0",
   "0",
   "0"
@@ -553,6 +554,7 @@ public void Event_CSGO_WarmupEnd(Event event, const char[] name, bool dontBroadc
   }
 
   PrepareWarmupDeathmatchEnd();
+  ApplyPostWarmupCvars();
 }
 
 public void Event_CSGO_RoundPreStart(Event event, const char[] name, bool dontBroadcast) {
@@ -563,6 +565,7 @@ public void Event_CSGO_RoundPreStart(Event event, const char[] name, bool dontBr
 
   if(gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") != 1) {
     PrepareWarmupDeathmatchEnd();
+    ApplyPostWarmupCvars();
   }
 }
 
@@ -1018,13 +1021,6 @@ void ApplyDeathmatchCvars() {
     } else if(StrEqual(warmupCvarNames[i], "mp_maxrounds", false)) {
       convar.SetInt(1);
     } else if(
-      StrEqual(warmupCvarNames[i], "spec_freeze_time", false) ||
-      StrEqual(warmupCvarNames[i], "spec_freeze_time_lock", false) ||
-      StrEqual(warmupCvarNames[i], "spec_freeze_deathanim_time", false) ||
-      StrEqual(warmupCvarNames[i], "spec_freeze_panel_extended_time", false)
-    ) {
-      convar.SetInt(0);
-    } else if(
       StrEqual(warmupCvarNames[i], "mp_timelimit", false) ||
       StrEqual(warmupCvarNames[i], "mp_roundtime", false) ||
       StrEqual(warmupCvarNames[i], "mp_roundtime_hostage", false) ||
@@ -1035,6 +1031,17 @@ void ApplyDeathmatchCvars() {
       convar.SetInt(cvars[DEATHMATCH_HEADSHOT_ONLY].BoolValue ? 1 : 0);
     } else {
       convar.SetString(warmupCvarValues[i]);
+    }
+  }
+
+  ApplyDeathmatchOnlyCvars();
+}
+
+void ApplyDeathmatchOnlyCvars() {
+  for(int i = 0; i < DEATHMATCH_ONLY_CVAR_COUNT; i++) {
+    ConVar convar = FindConVar(deathmatchOnlyCvarNames[i]);
+    if(convar != null) {
+      convar.SetString(deathmatchOnlyCvarValues[i]);
     }
   }
 }
@@ -1399,7 +1406,7 @@ public Action Timer_WelcomeMessage(Handle timer, int id) {
     say("YOU ARE SPECTATING THIS MATCH.");
   }
 
-  PrintToChatAll("\x01 \x09<%s> \x02TO START THE MATCH TYPE: !ready", hostname);
+  PrintToChatAll("\x01 \x09<%s> \x04TO START THE MATCH TYPE: !ready", hostname);
 
   return Plugin_Continue;
 }
