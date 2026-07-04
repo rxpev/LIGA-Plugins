@@ -53,6 +53,7 @@ enum Cvars {
   IS_AWP,
   IS_IGL,
   MAX_ROUNDS,
+  SV_CHEATS,
   SPECTATING,
 }
 ConVar cvars[Cvars];
@@ -278,6 +279,12 @@ public void OnPluginStart() {
   if(cvars[MAX_ROUNDS] != null) {
     cvars[MAX_ROUNDS].SetInt(GetRequiredMaxRounds());
     cvars[MAX_ROUNDS].AddChangeHook(OnMaxRoundsChanged);
+  }
+
+  cvars[SV_CHEATS] = FindConVar("sv_cheats");
+  if(cvars[SV_CHEATS] != null) {
+    cvars[SV_CHEATS].SetInt(0);
+    cvars[SV_CHEATS].AddChangeHook(OnSvCheatsChanged);
   }
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
   HookEventEx("warmup_end", Event_CSGO_WarmupEnd, EventHookMode_Pre);
@@ -1568,6 +1575,12 @@ public void OnMaxRoundsChanged(ConVar convar, const char[] oldValue, const char[
   int requiredMaxRounds = GetRequiredMaxRounds();
   if(convar.IntValue != requiredMaxRounds) {
     convar.SetInt(requiredMaxRounds);
+  }
+}
+
+public void OnSvCheatsChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+  if(convar.IntValue != 0) {
+    convar.SetInt(0);
   }
 }
 
