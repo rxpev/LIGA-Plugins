@@ -5,7 +5,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush Deep Smoker"
@@ -47,7 +47,7 @@
         "A Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Rush CT Smoker"
@@ -89,7 +89,7 @@
         "B Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Exec Cave Smoker"
@@ -135,7 +135,7 @@
         "A Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Rush Regular"
@@ -178,7 +178,7 @@
         "B Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Exec Con Smoker"
@@ -221,7 +221,7 @@
         "B Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Split Con Flasher"
@@ -266,7 +266,7 @@
         "A Contact"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Contact Main Util"
@@ -307,7 +307,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush Util"
@@ -347,7 +347,7 @@
         "A Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Split Mid Smoker"
@@ -393,7 +393,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush Entry Smoker"
@@ -433,7 +433,7 @@
         "A Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Exec Long"
@@ -475,7 +475,7 @@
         "Mid2B"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "Mid Flasher"
@@ -520,7 +520,7 @@
         "A Short Wrap"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Short Apps Util"
@@ -564,7 +564,7 @@
         "A Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Split Library Smoker"
@@ -609,7 +609,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush CT Smoker"
@@ -655,7 +655,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush Smoker"
@@ -695,7 +695,7 @@
         "A Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Exec Jungle Smoker"
@@ -736,7 +736,7 @@
         "B Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Split Window Smoker"
@@ -781,7 +781,7 @@
         "A Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Rush Door"
@@ -823,7 +823,7 @@
         "Ramp Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "Ramp Rush Flasher"
@@ -861,7 +861,7 @@
         "Contact A"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "Contact A Flasher"
@@ -905,7 +905,7 @@
         "B Short Pop"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "Short Pop Monster Util"
@@ -947,7 +947,7 @@
         "A Exec"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Exec Long Util"
@@ -992,7 +992,7 @@
         "B Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Rush Flasher"
@@ -1037,7 +1037,7 @@
         "A Ivy Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Ivy Split Ivy Smoke"
@@ -1082,7 +1082,7 @@
         "B Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Exec Upper Entry"
@@ -1126,7 +1126,7 @@
         "A Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Exec Bombtrain Smoker"
@@ -1172,7 +1172,7 @@
         "B Execute"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Execute Flasher"
@@ -1216,7 +1216,7 @@
         "B Split"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "B Split Elevator Smoker"
@@ -1257,7 +1257,7 @@
         "A Rush"
         {
             "team" "T"
-            "chance" "15.0"
+            "chance" "20.0"
             "minplayers" "5"
 
             "A Rush Entry Flasher"
