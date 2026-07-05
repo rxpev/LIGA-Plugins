@@ -1186,7 +1186,7 @@
             "B Execute Smoker"
             {
                 "position" "-1405.829956 -1455.430053 11488.031250"
-                "lookat" "-2442.831054 -1033.535156 11743.968750"
+                "lookat" "-2494.894287 -1028.064453 11743.968750"
                 "utility1" "45 1"
                 "utility2" "43 1"
                 "replay" "addons/sourcemod/data/botmimic/strategies/de_vertigo/B Execute Smoker.rec"
