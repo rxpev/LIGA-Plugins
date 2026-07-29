@@ -55,6 +55,9 @@ Handle g_hLagStoreTimers[MAXPLAYERS + 1];
 bool g_bPoisoned[MAXPLAYERS + 1];
 bool g_bPistolOnly[MAXPLAYERS + 1];
 bool g_bShaky[MAXPLAYERS + 1];
+bool g_bTank[MAXPLAYERS + 1];
+int g_iTankWeaponRef[MAXPLAYERS + 1];
+char g_szTankWeaponClass[MAXPLAYERS + 1][64];
 bool g_bLeadBoots[MAXPLAYERS + 1];
 bool g_bIceSkates[MAXPLAYERS + 1];
 bool g_bBackpedal[MAXPLAYERS + 1];
@@ -74,6 +77,13 @@ public Plugin myinfo =
     version = "1.0.0",
     url = "http://steamcommunity.com/id/rxpev"
 };
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+    RegPluginLibrary("liga_chaos");
+    CreateNative("Chaos_ShouldBotsIgnoreDroppedPrimaries", Native_ShouldBotsIgnoreDroppedPrimaries);
+    return APLRes_Success;
+}
 
 public void OnPluginStart()
 {
@@ -95,7 +105,11 @@ public void OnPluginStart()
     for (int client = 1; client <= MaxClients; client++)
     {
         if (IsClientInGame(client))
+        {
             SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+            SDKHook(client, SDKHook_WeaponDrop, OnWeaponDrop);
+            SDKHook(client, SDKHook_WeaponEquip, OnWeaponEquip);
+        }
     }
 }
 
@@ -110,6 +124,8 @@ public void OnMapStart()
 public void OnClientPutInServer(int client)
 {
     SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
+    SDKHook(client, SDKHook_WeaponDrop, OnWeaponDrop);
+    SDKHook(client, SDKHook_WeaponEquip, OnWeaponEquip);
 }
 
 public void OnClientDisconnect(int client)
@@ -125,6 +141,9 @@ public void OnClientDisconnect(int client)
     g_bPoisoned[client] = false;
     g_bPistolOnly[client] = false;
     g_bShaky[client] = false;
+    g_bTank[client] = false;
+    g_iTankWeaponRef[client] = INVALID_ENT_REFERENCE;
+    g_szTankWeaponClass[client][0] = '\0';
     g_bLeadBoots[client] = false;
     g_bIceSkates[client] = false;
     g_bBackpedal[client] = false;
@@ -211,7 +230,37 @@ public Action OnWeaponCanUse(int client, int weapon)
     if (IsValidEntity(weapon) && g_bPistolOnly[client] && IsPrimaryWeapon(weapon))
         return Plugin_Handled;
 
+    if (IsValidEntity(weapon) && g_bTank[client] && IsPrimaryWeapon(weapon) && !CanUseTankPrimary(client, weapon))
+        return Plugin_Handled;
+
     if (IsValidEntity(weapon) && g_bBomber[client] && !IsAllowedBomberWeapon(weapon))
+        return Plugin_Handled;
+
+    return Plugin_Continue;
+}
+
+public Action OnWeaponEquip(int client, int weapon)
+{
+    if (!IsChaosMode() || !IsValidChaosTarget(client) || !IsValidEntity(weapon))
+        return Plugin_Continue;
+
+    if (g_bTank[client] && IsPrimaryWeapon(weapon) && !CanUseTankPrimary(client, weapon))
+        return Plugin_Handled;
+
+    return Plugin_Continue;
+}
+
+public Action OnWeaponDrop(int client, int weapon)
+{
+    if (ShouldBlockTankWeaponDrop(client, weapon))
+        return Plugin_Handled;
+
+    return Plugin_Continue;
+}
+
+public Action CS_OnCSWeaponDrop(int client, int weaponIndex, bool donated)
+{
+    if (ShouldBlockTankWeaponDrop(client, weaponIndex))
         return Plugin_Handled;
 
     return Plugin_Continue;
@@ -226,6 +275,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
     if (g_bPistolOnly[client])
         StripPrimaryWeapon(client);
+
+    if (g_bTank[client])
+        EnforceTankWeapon(client);
 
     if (g_bBomber[client])
         EnforceBomber(client);
@@ -290,6 +342,56 @@ bool IsValidChaosTarget(int client)
         && IsClientInGame(client)
         && IsPlayerAlive(client)
         && GetClientTeam(client) >= 2;
+}
+
+public int Native_ShouldBotsIgnoreDroppedPrimaries(Handle plugin, int numParams)
+{
+    int client = GetNativeCell(1);
+    return ShouldBotsIgnoreDroppedPrimaries(client);
+}
+
+bool ShouldBotsIgnoreDroppedPrimaries(int client)
+{
+    return IsChaosMode()
+        && IsValidChaosTarget(client)
+        && (g_bPistolOnly[client] || g_bTank[client]);
+}
+
+bool ShouldBlockTankWeaponDrop(int client, int weapon)
+{
+    return IsChaosMode()
+        && IsValidChaosTarget(client)
+        && g_bTank[client]
+        && IsValidEntity(weapon)
+        && IsTankWeaponForClient(client, weapon);
+}
+
+bool CanUseTankPrimary(int client, int weapon)
+{
+    if (!IsValidEntity(weapon))
+        return false;
+
+    if (IsTankWeaponForClient(client, weapon))
+        return true;
+
+    int assignedWeapon = EntRefToEntIndex(g_iTankWeaponRef[client]);
+    return assignedWeapon == INVALID_ENT_REFERENCE && IsTankWeapon(weapon);
+}
+
+bool IsTankWeaponForClient(int client, int weapon)
+{
+    if (!IsValidEntity(weapon))
+        return false;
+
+    int assignedWeapon = EntRefToEntIndex(g_iTankWeaponRef[client]);
+    if (assignedWeapon != INVALID_ENT_REFERENCE && assignedWeapon == weapon)
+        return true;
+
+    char classname[64];
+    GetEntityClassname(weapon, classname, sizeof(classname));
+
+    return g_szTankWeaponClass[client][0] != '\0'
+        && StrEqual(classname, g_szTankWeaponClass[client]);
 }
 
 ChaosEffect RollEffectForClient(int client)
@@ -429,6 +531,7 @@ void ApplyChaosEffect(int client, ChaosEffect effect)
         }
         case ChaosEffect_Tank:
         {
+            g_bTank[client] = true;
             EnableHeavyAssaultSuit();
             ReplaceWithRandomTankWeapon(client);
             GivePlayerItem(client, "item_heavyassaultsuit");
@@ -1274,8 +1377,75 @@ void ReplaceWithRandomTankWeapon(int client)
         "weapon_mag7"
     };
 
+    int index = GetRandomInt(0, sizeof(weapons) - 1);
+    strcopy(g_szTankWeaponClass[client], sizeof(g_szTankWeaponClass[]), weapons[index]);
+
     StripPrimaryWeapon(client);
-    GivePlayerItem(client, weapons[GetRandomInt(0, sizeof(weapons) - 1)]);
+    int weapon = GivePlayerItem(client, g_szTankWeaponClass[client]);
+    StoreTankWeapon(client, weapon);
+}
+
+void StoreTankWeapon(int client, int weapon)
+{
+    if (IsValidEntity(weapon))
+    {
+        g_iTankWeaponRef[client] = EntIndexToEntRef(weapon);
+        GetEntityClassname(weapon, g_szTankWeaponClass[client], sizeof(g_szTankWeaponClass[]));
+    }
+    else
+    {
+        g_iTankWeaponRef[client] = INVALID_ENT_REFERENCE;
+    }
+}
+
+void EnforceTankWeapon(int client)
+{
+    if (!IsValidChaosTarget(client) || !g_bTank[client])
+        return;
+
+    int primary = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
+    if (IsValidEntity(primary) && IsTankWeaponForClient(client, primary))
+    {
+        StoreTankWeapon(client, primary);
+        return;
+    }
+
+    if (IsValidEntity(primary))
+        StripPrimaryWeapon(client);
+
+    if (g_szTankWeaponClass[client][0] == '\0')
+    {
+        ReplaceWithRandomTankWeapon(client);
+        return;
+    }
+
+    int weapon = GivePlayerItem(client, g_szTankWeaponClass[client]);
+    StoreTankWeapon(client, weapon);
+}
+
+bool IsTankWeapon(int weapon)
+{
+    if (!IsValidEntity(weapon))
+        return false;
+
+    char classname[64];
+    GetEntityClassname(weapon, classname, sizeof(classname));
+    return IsTankWeaponClassname(classname);
+}
+
+bool IsTankWeaponClassname(const char[] classname)
+{
+    return StrEqual(classname, "weapon_mp9")
+        || StrEqual(classname, "weapon_mp7")
+        || StrEqual(classname, "weapon_mac10")
+        || StrEqual(classname, "weapon_bizon")
+        || StrEqual(classname, "weapon_p90")
+        || StrEqual(classname, "weapon_mp5sd")
+        || StrEqual(classname, "weapon_ump45")
+        || StrEqual(classname, "weapon_nova")
+        || StrEqual(classname, "weapon_xm1014")
+        || StrEqual(classname, "weapon_sawedoff")
+        || StrEqual(classname, "weapon_mag7");
 }
 
 void ReplaceWithRandomPrimary(int client)
@@ -1557,6 +1727,9 @@ void ResetAllChaosState()
         g_bPoisoned[client] = false;
         g_bPistolOnly[client] = false;
         g_bShaky[client] = false;
+        g_bTank[client] = false;
+        g_iTankWeaponRef[client] = INVALID_ENT_REFERENCE;
+        g_szTankWeaponClass[client][0] = '\0';
         g_bLeadBoots[client] = false;
         g_bIceSkates[client] = false;
         g_bBackpedal[client] = false;
