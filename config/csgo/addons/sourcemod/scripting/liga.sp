@@ -493,7 +493,7 @@ public Action Command_Spectate(int client, const char[] command, int argc) {
     return Plugin_Continue;
   }
 
-  PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
+  PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch to spectators during this match.");
   return Plugin_Handled;
 }
 
@@ -516,14 +516,14 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
   }
 
   if(requestedTeam == CS_TEAM_SPECTATOR) {
-    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch to spectators during this match.");
+    PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch to spectators during this match.");
     return Plugin_Handled;
   }
 
   int currentTeam = GetClientTeam(client);
   if(currentTeam > CS_TEAM_SPECTATOR) {
     if(requestedTeam != JOIN_TEAM_AUTO && requestedTeam != currentTeam) {
-      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+      PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch teams during this match.");
     }
 
     return Plugin_Handled;
@@ -532,7 +532,7 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
   int allowedTeam = GetAllowedHumanTeam();
   if(allowedTeam == CS_TEAM_NONE) {
     if(currentTeam > CS_TEAM_SPECTATOR && requestedTeam != currentTeam) {
-      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+      PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch teams during this match.");
       return Plugin_Handled;
     }
 
@@ -543,14 +543,14 @@ public Action Command_JoinTeam(int client, const char[] command, int argc) {
     if(GetClientTeam(client) <= CS_TEAM_SPECTATOR) {
       ChangeClientTeam(client, allowedTeam);
     } else if(GetClientTeam(client) != allowedTeam) {
-      PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+      PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch teams during this match.");
     }
 
     return Plugin_Handled;
   }
 
   if(requestedTeam != allowedTeam) {
-    PrintToChat(client, "\x01\x04<LIGA>\x01 \x07You cannot switch teams during this match.");
+    PrintToChat(client, "\x01 \x09[LIGA] \x07You cannot switch teams during this match.");
     return Plugin_Handled;
   }
 
