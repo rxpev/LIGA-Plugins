@@ -21,6 +21,7 @@ const int     INTERVAL_LO3                          = 3;
 const int     INTERVAL_WELCOME_MESSAGE              = 30;
 const int     LO3_LOOP_NUM                          = 3;
 const int     LO3_PRINT_NUM                         = 4;
+const float   INTERVAL_PAUSE_REMINDER               = 30.0;
 char          MENU_TEAM_SELECT[]                    = "specgui";
 char          MENU_TEAM_SELECT_CT[]                 = "class_ct";
 char          MENU_TEAM_SELECT_T []                 = "class_ter";
@@ -72,6 +73,7 @@ bool          warmupSavedCvarExists[WARMUP_CVAR_COUNT];
 bool          awpRestricted[MAXPLAYERS + 1];
 bool          ecoAwpAllowed[MAXPLAYERS + 1];
 bool          eItemsAvailable                       = false;
+Handle        pauseReminderTimer                    = INVALID_HANDLE;
 char          buffer[BUFFER_SIZE_MAX + 1]           = "";
 char          hostname[BUFFER_SIZE_SM + 1]          = "";
 char          initialHumanTeam[BUFFER_SIZE_SM + 1]  = "";
@@ -312,6 +314,8 @@ public void OnLibraryRemoved(const char[] name) {
 }
 
 public void OnMapStart() {
+  isMatchPaused = false;
+  pauseReminderTimer = INVALID_HANDLE;
   standaloneDeathmatchActive = false;
   deathmatchWarmupEndPollActive = false;
   warmupDeathmatchActive = false;
@@ -320,6 +324,15 @@ public void OnMapStart() {
   warmupRestorePollActive = false;
   PrecacheSound(SOUND_WARMUP_KILL, true);
   PrecacheSound(SOUND_WARMUP_HEADSHOT_KILL, true);
+}
+
+public void OnMapEnd() {
+  StopPauseReminderTimer();
+  isMatchPaused = false;
+}
+
+public void OnPluginEnd() {
+  StopPauseReminderTimer();
 }
 
 public void OnEntityCreated(int entity, const char[] classname) {
@@ -441,13 +454,14 @@ public Action Command_Pause(int client, int args) {
   }
 
   if (isMatchPaused) {
-    say("MATCH IS ALREADY PAUSED.");
+    sayLiga("MATCH IS ALREADY PAUSED.");
     return Plugin_Handled;
   }
 
   ServerCommand("mp_pause_match");
   isMatchPaused = true;
-  say("MATCH PAUSED.");
+  sayLiga("MATCH PAUSED.");
+  StartPauseReminderTimer();
 
   return Plugin_Handled;
 }
@@ -458,13 +472,14 @@ public Action Command_Unpause(int client, int args) {
   }
 
   if (!isMatchPaused) {
-    say("MATCH IS NOT PAUSED.");
+    sayLiga("MATCH IS NOT PAUSED.");
     return Plugin_Handled;
   }
 
   ServerCommand("mp_unpause_match");
   isMatchPaused = false;
-  say("MATCH UNPAUSED.");
+  StopPauseReminderTimer();
+  sayLiga("MATCH UNPAUSED.");
 
   return Plugin_Handled;
 }
@@ -790,6 +805,20 @@ public Action Timer_ReExecLigaBots(Handle timer)
   reexecLigaBotsPending = false;
   ServerCommand("exec liga-bots");
   return Plugin_Stop;
+}
+
+public Action Timer_PauseReminder(Handle timer) {
+  if(timer == pauseReminderTimer && !isMatchPaused) {
+    pauseReminderTimer = INVALID_HANDLE;
+    return Plugin_Stop;
+  }
+
+  if(!isMatchPaused) {
+    return Plugin_Stop;
+  }
+
+  sayLiga("To unpause match type !unpause");
+  return Plugin_Continue;
 }
 
 public Action Timer_CheckWarmupEnded(Handle timer) {
@@ -1504,7 +1533,7 @@ Action RestrictAwpUsage(int client, int &buttons) {
   awpRestricted[client] = true;
   if(now - lastAwpWarn[client] >= 5.0) {
     lastAwpWarn[client] = now;
-    PrintToChat(client, "[PRO JOURNEY] You are not allowed to use the AWP.");
+    PrintToChat(client, "\x01 \x09[LIGA] \x07You are not allowed to use the AWP.");
     PrintCenterText(client, "You are not an AWPer.\nDrop the AWP to your AWPer!");
   }
 
@@ -1712,6 +1741,28 @@ int getScore(int id) {
 public void say(const char[] message, any ...) {
   VFormat(buffer, sizeof(buffer), message, 2);
    PrintToChatAll("\x01\x04<%s>\x01 %s", hostname, buffer);
+}
+
+public void sayLiga(const char[] message, any ...) {
+  VFormat(buffer, sizeof(buffer), message, 2);
+  PrintToChatAll("\x01 \x09[LIGA] \x04%s", buffer);
+}
+
+void StartPauseReminderTimer() {
+  if(pauseReminderTimer != INVALID_HANDLE) {
+    return;
+  }
+
+  pauseReminderTimer = CreateTimer(INTERVAL_PAUSE_REMINDER, Timer_PauseReminder, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+}
+
+void StopPauseReminderTimer() {
+  if(pauseReminderTimer == INVALID_HANDLE) {
+    return;
+  }
+
+  KillTimer(pauseReminderTimer);
+  pauseReminderTimer = INVALID_HANDLE;
 }
 
 /**
