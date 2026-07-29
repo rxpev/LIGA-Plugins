@@ -421,7 +421,7 @@ void ApplyChaosEffect(int client, ChaosEffect effect)
         case ChaosEffect_PistolOnly:
         {
             g_bPistolOnly[client] = true;
-            StripPrimaryWeapon(client);
+            ReplaceWithRandomPistol(client);
         }
         case ChaosEffect_Shaky:
         {
@@ -430,6 +430,7 @@ void ApplyChaosEffect(int client, ChaosEffect effect)
         case ChaosEffect_Tank:
         {
             EnableHeavyAssaultSuit();
+            ReplaceWithRandomTankWeapon(client);
             GivePlayerItem(client, "item_heavyassaultsuit");
             if (HasEntProp(client, Prop_Send, "m_bHasHeavyArmor"))
                 SetEntProp(client, Prop_Send, "m_bHasHeavyArmor", 1);
@@ -508,7 +509,7 @@ void GetEffectName(ChaosEffect effect, char[] buffer, int maxlen)
         }
         case ChaosEffect_HighUp:
         {
-            strcopy(buffer, maxlen, "High Up");
+            strcopy(buffer, maxlen, "Bumpy Ride");
         }
         case ChaosEffect_OneShotWonder:
         {
@@ -568,7 +569,7 @@ void GetEffectName(ChaosEffect effect, char[] buffer, int maxlen)
         }
         case ChaosEffect_Nighttime:
         {
-            strcopy(buffer, maxlen, "Nighttime");
+            strcopy(buffer, maxlen, "Lights Out");
         }
         case ChaosEffect_Wallhack:
         {
@@ -599,7 +600,7 @@ void GetEffectDescription(ChaosEffect effect, char[] buffer, int maxlen)
         }
         case ChaosEffect_HighUp:
         {
-            strcopy(buffer, maxlen, "Received two bumpmines.");
+            strcopy(buffer, maxlen, "Received bumpmines.");
         }
         case ChaosEffect_OneShotWonder:
         {
@@ -1232,6 +1233,49 @@ bool IsKnifeWeapon(int weapon)
 bool IsAllowedBomberWeapon(int weapon)
 {
     return IsHeGrenade(weapon) || IsKnifeWeapon(weapon);
+}
+
+void ReplaceWithRandomPistol(int client)
+{
+    if (!IsValidChaosTarget(client))
+        return;
+
+    static char pistols[][] = {
+        "weapon_deagle",
+        "weapon_tec9",
+        "weapon_fiveseven",
+        "weapon_p250",
+        "weapon_cz75a",
+        "weapon_revolver",
+        "weapon_elite"
+    };
+
+    StripWeaponSlot(client, CS_SLOT_PRIMARY);
+    StripWeaponSlot(client, CS_SLOT_SECONDARY);
+    GivePlayerItem(client, pistols[GetRandomInt(0, sizeof(pistols) - 1)]);
+}
+
+void ReplaceWithRandomTankWeapon(int client)
+{
+    if (!IsValidChaosTarget(client))
+        return;
+
+    static char weapons[][] = {
+        "weapon_mp9",
+        "weapon_mp7",
+        "weapon_mac10",
+        "weapon_bizon",
+        "weapon_p90",
+        "weapon_mp5sd",
+        "weapon_ump45",
+        "weapon_nova",
+        "weapon_xm1014",
+        "weapon_sawedoff",
+        "weapon_mag7"
+    };
+
+    StripPrimaryWeapon(client);
+    GivePlayerItem(client, weapons[GetRandomInt(0, sizeof(weapons) - 1)]);
 }
 
 void ReplaceWithRandomPrimary(int client)
