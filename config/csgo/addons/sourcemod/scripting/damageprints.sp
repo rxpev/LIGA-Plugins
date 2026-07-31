@@ -23,9 +23,14 @@ int g_HitsDealt[MAXPLAYERS+1][MAXPLAYERS+1];
 int g_HitsTaken[MAXPLAYERS+1][MAXPLAYERS+1];
 bool g_bMatchLive = false;
 bool g_bLiveRoundActive = false;
+bool g_bCachedInitialTeamNames = false;
+char g_InitialCTName[32];
+char g_InitialTName[32];
 
 ConVar g_hIsFaceit = null;
 ConVar g_hIsDeathmatch = null;
+ConVar g_hTeamName1 = null;
+ConVar g_hTeamName2 = null;
 
 public void OnPluginStart()
 {
@@ -38,6 +43,8 @@ public void OnPluginStart()
         true, 1.0
     );
     g_hIsDeathmatch = FindConVar("isDeathmatch");
+    g_hTeamName1 = FindConVar("mp_teamname_1");
+    g_hTeamName2 = FindConVar("mp_teamname_2");
 
     HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Post);
     HookEvent("round_start", OnRoundStart, EventHookMode_Post);
@@ -51,6 +58,7 @@ public void OnPluginStart()
 
     g_bMatchLive = false;
     g_bLiveRoundActive = false;
+    g_bCachedInitialTeamNames = false;
     ResetAll();
 }
 
@@ -58,6 +66,7 @@ public void OnMapStart()
 {
     g_bMatchLive = false;
     g_bLiveRoundActive = false;
+    g_bCachedInitialTeamNames = false;
     ResetAll();
 }
 
@@ -91,7 +100,22 @@ void StartMatchDamagePrints()
 
     g_bMatchLive = true;
     g_bLiveRoundActive = false;
+    CacheInitialTeamNames();
     ResetAll();
+}
+
+void CacheInitialTeamNames()
+{
+    g_InitialCTName[0] = '\0';
+    g_InitialTName[0] = '\0';
+
+    if (g_hTeamName1 != null)
+        g_hTeamName1.GetString(g_InitialCTName, sizeof(g_InitialCTName));
+
+    if (g_hTeamName2 != null)
+        g_hTeamName2.GetString(g_InitialTName, sizeof(g_InitialTName));
+
+    g_bCachedInitialTeamNames = true;
 }
 
 // Centralized chat print that switches prefix + color based on isFaceit
@@ -222,8 +246,25 @@ void ShowRoundSummary()
 
     char tName[32];
     char ctName[32];
-    FindConVar("mp_teamname_2").GetString(tName, sizeof(tName));
-    FindConVar("mp_teamname_1").GetString(ctName, sizeof(ctName));
+    if (g_hTeamName2 != null)
+        g_hTeamName2.GetString(tName, sizeof(tName));
+    else
+        tName[0] = '\0';
+
+    if (g_hTeamName1 != null)
+        g_hTeamName1.GetString(ctName, sizeof(ctName));
+    else
+        ctName[0] = '\0';
+
+    if (g_bCachedInitialTeamNames
+        && StrEqual(tName, g_InitialCTName)
+        && StrEqual(ctName, g_InitialTName))
+    {
+        int oldScoreT = scoreT;
+        scoreT = scoreCT;
+        scoreCT = oldScoreT;
+    }
+
     PrintModeToAll("%s [%d - %d] %s", tName, scoreT, scoreCT, ctName);
 
     for (int attacker = 1; attacker <= MaxClients; attacker++)

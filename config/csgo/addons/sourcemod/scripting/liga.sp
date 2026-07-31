@@ -51,6 +51,7 @@ enum Cvars {
   DEATHMATCH_HEADSHOT_ONLY,
   DEATHMATCH_PISTOLS_ONLY,
   DEATHMATCH_FORCE_BUY,
+  IS_FACEIT,
   IS_AWP,
   IS_IGL,
   MAX_ROUNDS,
@@ -63,6 +64,7 @@ ConVar cvars[Cvars];
 bool          live, halfTime, overTime              = false;
 bool          welcomed                              = false;
 bool          isMatchPaused                         = false;
+bool          matchLiveAnnounced                    = false;
 bool          standaloneDeathmatchActive            = false;
 bool          deathmatchWarmupEndPollActive         = false;
 bool          warmupDeathmatchActive                = false;
@@ -248,6 +250,7 @@ public void OnPluginStart() {
   cvars[DEATHMATCH_HEADSHOT_ONLY].AddChangeHook(OnDeathmatchCvarChanged);
   cvars[DEATHMATCH_PISTOLS_ONLY].AddChangeHook(OnDeathmatchCvarChanged);
   cvars[DEATHMATCH_FORCE_BUY].AddChangeHook(OnDeathmatchCvarChanged);
+  cvars[IS_FACEIT]      = FindConVar("isFaceit");
   cvars[IS_AWP]          = CreateConVar(
     "isAWP",
     "0",
@@ -291,7 +294,7 @@ public void OnPluginStart() {
   HookEvent("cs_win_panel_match", Event_CSGO_GameOver);
   HookEventEx("warmup_end", Event_CSGO_WarmupEnd, EventHookMode_Pre);
   HookEventEx("round_prestart", Event_CSGO_RoundPreStart, EventHookMode_Pre);
-  HookEvent("round_start", Event_CSGO_RoundStart);
+  HookEvent("round_start", Event_CSGO_RoundStart, EventHookMode_Post);
   HookEvent("round_freeze_end", Event_CSGO_FreezeEnd);
 
   AddGameLogHook(Hook_Log);
@@ -322,6 +325,7 @@ public void OnMapStart() {
   warmupDeathmatchEnding = false;
   warmupCvarsSaved = false;
   warmupRestorePollActive = false;
+  matchLiveAnnounced = false;
   PrecacheSound(SOUND_WARMUP_KILL, true);
   PrecacheSound(SOUND_WARMUP_HEADSHOT_KILL, true);
 }
@@ -422,19 +426,14 @@ public void OnDeathmatchCvarChanged(ConVar convar, const char[] oldValue, const 
  * @param args The command arguments.
  */
 public Action Command_ReadyUp(int id, int args) {
-  if(gameEngine == Engine_CSGO) {
-    if(IsDeathmatchMode()) {
-      return Plugin_Handled;
-    }
+  if(IsDeathmatchMode()) {
+    return Plugin_Handled;
+  }
 
+  if(gameEngine == Engine_CSGO) {
     PrepareWarmupDeathmatchEnd();
     ServerCommand("mp_warmup_end");
     StartWarmupRestorePoll();
-    return Plugin_Continue;
-  }
-
-  // bail if we're already live
-  if(live) {
     return Plugin_Continue;
   }
 
@@ -446,6 +445,35 @@ public Action Command_ReadyUp(int id, int args) {
   }
 
   return Plugin_Continue;
+}
+
+void PrintMatchLiveMessage() {
+  if(matchLiveAnnounced) {
+    return;
+  }
+
+  if(StrEqual(hostname, "")) {
+    Handle convar = FindConVar("hostname");
+    if(convar != null) {
+      GetConVarString(convar, hostname, sizeof(hostname));
+    }
+  }
+
+  if(StrEqual(hostname, "")) {
+    strcopy(hostname, sizeof(hostname), "Server");
+  }
+
+  if(cvars[IS_FACEIT] == null) {
+    cvars[IS_FACEIT] = FindConVar("isFaceit");
+  }
+
+  if(cvars[IS_FACEIT] != null && cvars[IS_FACEIT].IntValue == 1) {
+    PrintToChatAll("\x01 \x04[FACEIT^] MATCH IS LIVE!");
+  } else {
+    PrintToChatAll("\x01 \x09[%s] \x04MATCH IS LIVE!", hostname);
+  }
+
+  matchLiveAnnounced = true;
 }
 
 public Action Command_Pause(int client, int args) {
@@ -612,7 +640,17 @@ public void Event_CSGO_RoundStart(Event event, const char[] name, bool dontBroad
 
   if(!isWarmup && !IsDeathmatchMode()) {
     rounds++;
+    CreateTimer(0.1, Timer_PrintMatchLiveMessage, _, TIMER_FLAG_NO_MAPCHANGE);
   }
+}
+
+public Action Timer_PrintMatchLiveMessage(Handle timer) {
+  if(gameEngine == Engine_CSGO && GameRules_GetProp("m_bWarmupPeriod") == 1) {
+    return Plugin_Stop;
+  }
+
+  PrintMatchLiveMessage();
+  return Plugin_Stop;
 }
 
 public void Event_CSGO_FreezeEnd(Event event, const char[] name, bool dontBroadcast) {
